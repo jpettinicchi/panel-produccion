@@ -28,9 +28,9 @@
 </head>
 <body class="bg-darkBg text-slate-100 min-h-screen font-sans antialiased">
 
-    <!-- CONFIGURACIÓN HARDCODEADA OPCIONAL (Si querés que entre directo sin configurar nada) -->
+    <!-- CONFIGURACIÓN HARDCODEADA OPCIONAL -->
     <script>
-        const HARDCODED_SHEET_ID = "1N0iNUEpM85pPNJlpXrj2ccmBA0kLYMSfLphIxUs8Llw"
+        const HARDCODED_SHEET_ID = ""; // Tu ID de Google Sheet si preferís dejarlo fijo
         const HARDCODED_SHEET_NAME = "REGISTRO PRODUCCION";
     </script>
 
@@ -192,8 +192,7 @@
         document.addEventListener("DOMContentLoaded", () => {
             detectarCredenciales();
             cargarDatosEnVivo();
-            // Actualización automática cada 5 minutos (300.000 ms)
-            setInterval(cargarDatosEnVivo, 300000);
+            setInterval(cargarDatosEnVivo, 300000); // 5 min refresh
         });
 
         function detectarCredenciales() {
@@ -230,7 +229,6 @@
             icon.classList.add("fa-spin");
             actualizarStatus("bg-amber-500", "Sincronizando con Google Sheets...");
 
-            // Endpoint de lectura pública en formato CSV
             const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetIdActive}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetNameActive)}`;
 
             try {
@@ -261,7 +259,6 @@
             document.getElementById('status-texto').textContent = text;
         }
 
-        // Parser CSV tolerante
         function parseCSV(text) {
             const lines = text.split(/\r\n|\n/);
             if (lines.length < 2) return [];
@@ -307,12 +304,47 @@
             return h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
         }
 
+        // Búsqueda Ultra-Flexible de Campos
         function buscarCampo(obj, posiblesNombres) {
+            const keysObj = Object.keys(obj);
+            
+            // 1. Coincidencia exacta por normalización
             for (let nombre of posiblesNombres) {
-                const key = normalizeHeader(nombre);
-                if (obj[key] !== undefined) return obj[key];
+                const keyBusqueda = normalizeHeader(nombre);
+                if (obj[keyBusqueda] !== undefined && obj[keyBusqueda] !== "") {
+                    return obj[keyBusqueda];
+                }
+            }
+
+            // 2. Coincidencia parcial si la columna contiene la palabra clave
+            for (let nombre of posiblesNombres) {
+                const keyBusqueda = normalizeHeader(nombre);
+                const kEncontrada = keysObj.find(k => k.includes(keyBusqueda));
+                if (kEncontrada && obj[kEncontrada] !== undefined && obj[kEncontrada] !== "") {
+                    return obj[kEncontrada];
+                }
             }
             return "";
+        }
+
+        // Parser numérico ultra robusto para Argentina/Excel
+        function parsearNumero(val) {
+            if (!val) return 0;
+            if (typeof val === 'number') return val;
+            
+            // Limpiamos espacios, símbolos de moneda y caracteres invisibles
+            let limpio = val.toString().replace(/[^0-9.,-]/g, '').trim();
+            if (!limpio) return 0;
+
+            // Si tiene punto y coma, manejamos formato latino
+            if (limpio.includes('.') && limpio.includes(',')) {
+                limpio = limpio.replace(/\./g, '').replace(',', '.');
+            } else if (limpio.includes(',')) {
+                limpio = limpio.replace(',', '.');
+            }
+
+            const num = parseFloat(limpio);
+            return isNaN(num) ? 0 : num;
         }
 
         function poblarSelectoresFiltros() {
@@ -320,10 +352,10 @@
             const procesos = new Set();
 
             rawData.forEach(r => {
-                const mod = buscarCampo(r, ["EQUIPO/MODULO", "EQUIPO", "MODULO"]);
+                const mod = buscarCampo(r, ["EQUIPO/MODULO", "EQUIPO", "MODULO", "EQUIPOMODULO"]);
                 const proc = buscarCampo(r, ["Proceso", "PROCESO"]);
-                if (mod) modulos.add(mod);
-                if (proc) procesos.add(proc);
+                if (mod && mod !== "#N/A") modulos.add(mod);
+                if (proc && proc !== "#N/A") procesos.add(proc);
             });
 
             const selMod = document.getElementById("filtro-modulo");
@@ -348,7 +380,7 @@
             const procSel = document.getElementById("filtro-proceso").value;
 
             const filtrados = rawData.filter(r => {
-                const mod = buscarCampo(r, ["EQUIPO/MODULO", "EQUIPO", "MODULO"]);
+                const mod = buscarCampo(r, ["EQUIPO/MODULO", "EQUIPO", "MODULO", "EQUIPOMODULO"]);
                 const proc = buscarCampo(r, ["Proceso", "PROCESO"]);
                 const matchMod = (modSel === "TODOS" || mod === modSel);
                 const matchProc = (procSel === "TODOS" || proc === procSel);
@@ -367,25 +399,31 @@
             let tbodyHtml = "";
 
             datos.forEach(r => {
-                const prio = buscarCampo(r, ["Prioridad", "PRIORIDAD"]) || "-";
-                const modulo = buscarCampo(r, ["EQUIPO/MODULO", "EQUIPO", "MODULO"]) || "Sin Módulo";
+                const prio = buscarCampo(r, ["Prioridad", "PRIORIDAD", "PRIO"]) || "-";
+                const modulo = buscarCampo(r, ["EQUIPO/MODULO", "EQUIPO", "MODULO", "EQUIPOMODULO"]) || "Sin Módulo";
                 const proceso = buscarCampo(r, ["Proceso", "PROCESO"]) || "Sin Proceso";
                 
-                const cantTotal = parseFloat(buscarCampo(r, ["Cant TOTAL", "Cant. Total", "TOTAL"]).replace(/\./g, '').replace(',', '.')) || 0;
-                const pendiente = parseFloat(buscarCampo(r, ["Pendiente", "PENDIENTE"]).replace(/\./g, '').replace(',', '.')) || 0;
+                // Variantes posibles de nombres de columna para cantidades
+                const rawTotal = buscarCampo(r, ["Cant TOTAL", "Cant. Total", "CANT TOTAL", "CANTIDAD TOTAL", "TOTAL", "CANTIDAD", "CANT"]);
+                const rawPendiente = buscarCampo(r, ["Pendiente", "PENDIENTE", "CANT PENDIENTE", "PEND"]);
+
+                const cantTotal = parsearNumero(rawTotal);
+                const pendiente = parsearNumero(rawPendiente);
 
                 totalPiezas += cantTotal;
                 totalPendientes += pendiente;
 
-                // Agrupado por Módulo
-                if (!modMap[modulo]) modMap[modulo] = { total: 0, pendiente: 0 };
-                modMap[modulo].total += cantTotal;
-                modMap[modulo].pendiente += pendiente;
+                if (modulo) {
+                    if (!modMap[modulo]) modMap[modulo] = { total: 0, pendiente: 0 };
+                    modMap[modulo].total += cantTotal;
+                    modMap[modulo].pendiente += pendiente;
+                }
 
-                // Agrupado por Proceso
-                if (!procMap[proceso]) procMap[proceso] = { total: 0, pendiente: 0 };
-                procMap[proceso].total += cantTotal;
-                procMap[proceso].pendiente += pendiente;
+                if (proceso) {
+                    if (!procMap[proceso]) procMap[proceso] = { total: 0, pendiente: 0 };
+                    procMap[proceso].total += cantTotal;
+                    procMap[proceso].pendiente += pendiente;
+                }
 
                 const completado = Math.max(0, cantTotal - pendiente);
                 const pct = cantTotal > 0 ? Math.round((completado / cantTotal) * 100) : 0;
@@ -418,9 +456,7 @@
             document.getElementById("cant-registros-tabla").textContent = `${datos.length} ítems`;
             document.getElementById("tbody-registros").innerHTML = tbodyHtml || '<tr><td colspan="6" class="p-4 text-center text-slate-500 italic">No hay registros que coincidan con el filtro.</td></tr>';
 
-            // Renderizar Barras por Módulo
             renderizarBarrasAgrupadas("contenedor-modulos", modMap);
-            // Renderizar Barras por Proceso
             renderizarBarrasAgrupadas("contenedor-procesos", procMap);
         }
 
