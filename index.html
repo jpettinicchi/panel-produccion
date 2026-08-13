@@ -30,7 +30,7 @@
 
     <!-- CONFIGURACIÓN HARDCODEADA OPCIONAL -->
     <script>
-        const HARDCODED_SHEET_ID = ""; // Tu ID de Google Sheet si preferís dejarlo fijo
+        const HARDCODED_SHEET_ID = "1N0iNUEpM85pPNJlpXrj2ccmBA0kLYMSfLphIxUs8Llw"; 
         const HARDCODED_SHEET_NAME = "REGISTRO PRODUCCION";
     </script>
 
@@ -327,16 +327,14 @@
             return "";
         }
 
-        // Parser numérico ultra robusto para Argentina/Excel
+        // Parser numérico ultra robusto
         function parsearNumero(val) {
             if (!val) return 0;
             if (typeof val === 'number') return val;
             
-            // Limpiamos espacios, símbolos de moneda y caracteres invisibles
             let limpio = val.toString().replace(/[^0-9.,-]/g, '').trim();
             if (!limpio) return 0;
 
-            // Si tiene punto y coma, manejamos formato latino
             if (limpio.includes('.') && limpio.includes(',')) {
                 limpio = limpio.replace(/\./g, '').replace(',', '.');
             } else if (limpio.includes(',')) {
@@ -403,7 +401,6 @@
                 const modulo = buscarCampo(r, ["EQUIPO/MODULO", "EQUIPO", "MODULO", "EQUIPOMODULO"]) || "Sin Módulo";
                 const proceso = buscarCampo(r, ["Proceso", "PROCESO"]) || "Sin Proceso";
                 
-                // Variantes posibles de nombres de columna para cantidades
                 const rawTotal = buscarCampo(r, ["Cant TOTAL", "Cant. Total", "CANT TOTAL", "CANTIDAD TOTAL", "TOTAL", "CANTIDAD", "CANT"]);
                 const rawPendiente = buscarCampo(r, ["Pendiente", "PENDIENTE", "CANT PENDIENTE", "PEND"]);
 
