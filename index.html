@@ -1,490 +1,1113 @@
 <!DOCTYPE html>
-<html lang="es" class="dark">
+<html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Producción — AR2200 / C&S Agro</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        darkBg: '#0f172a',
-                        darkCard: '#1e293b'
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Panel de Producción — AR2200</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#15181A;
+    --panel:#1F2325;
+    --panel-2:#262B2D;
+    --line:#343B3D;
+    --line-soft:#2A3032;
+    --ink:#EDEDE3;
+    --muted:#8B9296;
+    --muted-2:#5F6668;
+    --yellow:#F2B807;
+    --yellow-ink:#3A2C00;
+    --blue:#3E8FB0;
+    --green:#4CAF6E;
+    --red:#E1503D;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  h1,h2,h3,.display{
+    font-family:'Oswald',"Arial Narrow",sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.03em;
+  }
+  .mono{font-family:'IBM Plex Mono',ui-monospace,'Courier New',monospace;}
+  a{color:inherit;}
+  button{font-family:inherit;cursor:pointer;}
+  ::selection{background:var(--yellow);color:var(--yellow-ink);}
+
+  /* ---------- layout shell ---------- */
+  #app{max-width:1100px;margin:0 auto;padding:0 0 60px;}
+
+  header.top{
+    position:sticky;top:0;z-index:20;
+    background:linear-gradient(180deg,var(--bg) 80%,transparent);
+    padding:16px 16px 0;
+  }
+  .hazard-rule{
+    height:4px;width:100%;
+    background:repeating-linear-gradient(135deg,var(--yellow) 0 10px,#1B1E1F 10px 20px);
+    border-radius:2px;
+    margin-top:12px;
+    opacity:.9;
+  }
+  .top-row{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .brand{display:flex;flex-direction:column;gap:2px;}
+  .brand .eyebrow{
+    font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase;font-weight:600;
+  }
+  .brand h1{font-size:26px;margin:0;line-height:1;font-weight:600;}
+  .brand h1 span{color:var(--yellow);}
+  .sync{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);}
+  .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(76,175,110,.15);}
+  .sync-dot.stale{background:var(--muted-2);box-shadow:none;}
+  .sync-dot.err{background:var(--red);box-shadow:0 0 0 3px rgba(225,80,61,.18);}
+  .btn{
+    border:1px solid var(--line);background:var(--panel-2);color:var(--ink);
+    border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;
+    display:inline-flex;align-items:center;gap:6px;transition:border-color .15s,background .15s;
+  }
+  .btn:hover{border-color:var(--muted-2);}
+  .btn.ghost{background:transparent;}
+  .btn.small{padding:6px 10px;font-size:12px;}
+  .btn:active{transform:translateY(1px);}
+
+  /* ---------- KPI strip ---------- */
+  .kpis{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:10px;
+    margin:16px 0 6px;
+  }
+  .kpi{
+    background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--radius);
+    padding:12px 14px;
+  }
+  .kpi .n{font-family:'Oswald',sans-serif;font-size:26px;font-weight:600;line-height:1;}
+  .kpi .l{font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.04em;text-transform:uppercase;}
+  .kpi.warn .n{color:var(--yellow);}
+  .kpi.good .n{color:var(--green);}
+
+  /* ---------- filters ---------- */
+  .filters{
+    display:flex;gap:8px;align-items:center;margin:18px 16px 0;flex-wrap:wrap;
+  }
+  .search{
+    flex:1;min-width:180px;
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    padding:10px 12px;color:var(--ink);font-size:14px;
+  }
+  .search::placeholder{color:var(--muted-2);}
+  .toggle{
+    display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 12px;
+    user-select:none;
+  }
+  .toggle input{accent-color:var(--yellow);width:16px;height:16px;}
+  select.sortsel{
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--ink);
+    padding:9px 10px;font-size:13px;
+  }
+
+  /* ---------- process tabs ---------- */
+  .tabs-wrap{margin:14px 0 4px;padding:0 16px;}
+  .tabs{
+    display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;
+    scrollbar-width:thin;
+  }
+  .tabs::-webkit-scrollbar{height:4px;}
+  .tabs::-webkit-scrollbar-thumb{background:var(--line);border-radius:2px;}
+  .tab{
+    flex:0 0 auto;
+    display:flex;align-items:center;gap:8px;
+    border:1px solid var(--line);background:var(--panel);
+    border-radius:999px;padding:8px 14px 8px 14px;
+    font-size:12.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;
+    color:var(--muted);white-space:nowrap;
+  }
+  .tab.active{border-color:var(--yellow);color:var(--ink);background:var(--panel-2);}
+  .tab .badge{
+    background:var(--line-soft);color:var(--muted);border-radius:999px;
+    font-family:'IBM Plex Mono',monospace;font-size:11px;padding:1px 7px;
+  }
+  .tab.active .badge{background:var(--yellow);color:var(--yellow-ink);}
+  .tab .badge.zero{opacity:.45;}
+
+  /* ---------- groups & cards ---------- */
+  .group{margin:22px 16px 0;}
+  .group-head{
+    display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+    padding-bottom:8px;border-bottom:1px solid var(--line-soft);margin-bottom:10px;
+    cursor:pointer;
+  }
+  .group-head h2{font-size:16px;margin:0;font-weight:500;color:var(--ink);}
+  .group-head .meta{font-size:12px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
+  .group-bar{
+    height:4px;border-radius:2px;background:var(--line-soft);overflow:hidden;margin-top:8px;
+  }
+  .group-bar > i{display:block;height:100%;background:var(--blue);}
+  .cards{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;
+  }
+  .card{
+    position:relative;
+    background:var(--panel);border:1px solid var(--line-soft);border-left:4px solid var(--muted-2);
+    border-radius:var(--radius);padding:12px 13px 11px;
+    overflow:hidden;
+  }
+  .card.st-pendiente{border-left-color:var(--yellow);}
+  .card.st-progreso{border-left-color:var(--blue);}
+  .card.st-completo{border-left-color:var(--green);opacity:.72;}
+  .card-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;}
+  .card-prio{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);
+    display:flex;align-items:center;gap:5px;
+  }
+  .card-prio .num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:20px;height:20px;border-radius:50%;border:1px solid var(--line);
+    font-size:10px;color:var(--muted);
+  }
+  .card-status{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:999px;}
+  .card-status.pendiente{background:rgba(242,184,7,.15);color:var(--yellow);}
+  .card-status.progreso{background:rgba(62,143,176,.18);color:var(--blue);}
+  .card-status.completo{background:rgba(76,175,110,.15);color:var(--green);}
+  .card-desc{font-size:13.5px;font-weight:600;margin:8px 0 2px;line-height:1.3;}
+  .card-code{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);}
+  .card-row{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:12px;}
+  .card-qty{color:var(--muted);}
+  .card-qty b{color:var(--ink);font-family:'IBM Plex Mono',monospace;}
+  .card-pct{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:12px;}
+  .bar{height:5px;border-radius:3px;background:var(--line-soft);margin-top:6px;overflow:hidden;}
+  .bar > i{display:block;height:100%;}
+  .card-foot{
+    display:flex;justify-content:space-between;margin-top:9px;padding-top:8px;
+    border-top:1px dashed var(--line-soft);font-size:11px;color:var(--muted);
+  }
+  .card-foot span b{color:var(--muted);font-weight:600;}
+
+  .empty{
+    text-align:center;color:var(--muted);padding:40px 20px;font-size:13px;
+  }
+
+  /* ---------- process extras: reparto de sierra / validación pintura ---------- */
+  .extra-panel{
+    margin:18px 16px 0;background:var(--panel);border:1px solid var(--line-soft);
+    border-radius:var(--radius);padding:14px 16px;
+  }
+  .extra-empty{color:var(--muted);font-size:13px;text-align:center;padding:10px;}
+  .extra-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  .extra-head h3{margin:0;font-size:14px;font-weight:600;color:var(--ink);text-transform:none;letter-spacing:0;font-family:'Inter',sans-serif;}
+  .extra-hint{font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.5;}
+  .saw-count-field{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px;}
+  .saw-count-field input{
+    width:56px;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
+    color:var(--ink);padding:5px 8px;font-family:'IBM Plex Mono',monospace;font-size:13px;
+  }
+  .saw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin-top:12px;}
+  .saw-card{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;padding:10px 11px;}
+  .saw-card-top{display:flex;justify-content:space-between;align-items:baseline;}
+  .saw-id{font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:.04em;color:var(--muted);}
+  .saw-hours{font-size:12px;color:var(--blue);}
+  .saw-bar{height:4px;border-radius:2px;background:var(--line-soft);margin-top:6px;overflow:hidden;}
+  .saw-bar > i{display:block;height:100%;background:var(--blue);}
+  .saw-items{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:4px;max-height:150px;overflow:auto;}
+  .saw-items li{display:flex;justify-content:space-between;gap:6px;font-size:11px;color:var(--muted);}
+  .saw-items li span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:68%;}
+  .saw-items .empty-item{color:var(--muted-2);font-style:italic;}
+  .chk-validado{
+    display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--muted);
+    font-weight:700;text-transform:uppercase;letter-spacing:.03em;
+  }
+  .chk-validado input{accent-color:var(--green);width:14px;height:14px;}
+  .card.st-validated{opacity:.55;}
+  .proc-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px;}
+  .proc-kpi{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;padding:10px 12px;}
+  .proc-kpi .n{font-family:'Oswald',sans-serif;font-size:20px;font-weight:600;line-height:1;}
+  .proc-kpi .n .of{font-size:13px;color:var(--muted);font-weight:500;}
+  .proc-kpi .l{font-size:10.5px;color:var(--muted);margin-top:4px;letter-spacing:.03em;text-transform:uppercase;}
+  .proc-kpi.warn .n{color:var(--yellow);}
+  .proc-kpi.good .n{color:var(--green);}
+  @media (max-width:640px){
+    .proc-kpis{grid-template-columns:repeat(2,1fr);}
+  }
+
+  .loadmore{display:flex;justify-content:center;margin:20px 16px 0;}
+
+  /* ---------- setup screen ---------- */
+  .setup{max-width:520px;margin:8vh auto;padding:0 20px;}
+  .setup .card-setup{
+    background:var(--panel);border:1px solid var(--line-soft);border-radius:14px;padding:26px 24px 24px;
+  }
+  .setup h1{font-size:22px;margin:0 0 4px;}
+  .setup p{color:var(--muted);font-size:13.5px;line-height:1.55;margin:0 0 18px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;font-weight:600;}
+  .field input{
+    width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;
+    padding:11px 12px;color:var(--ink);font-size:13.5px;font-family:'IBM Plex Mono',monospace;
+  }
+  .field .hint{font-size:11.5px;color:var(--muted-2);margin-top:5px;}
+  .setup .actions{display:flex;gap:10px;margin-top:18px;}
+  .btn.primary{background:var(--yellow);color:var(--yellow-ink);border-color:var(--yellow);}
+  .btn.primary:hover{filter:brightness(1.05);}
+  .steps{margin:20px 0 0;padding:16px;background:var(--panel-2);border-radius:10px;font-size:12.5px;color:var(--muted);line-height:1.7;}
+  .steps b{color:var(--ink);}
+  .err-box{
+    background:rgba(225,80,61,.1);border:1px solid rgba(225,80,61,.35);color:#f2a89c;
+    border-radius:8px;padding:10px 12px;font-size:12.5px;margin-top:14px;
+  }
+
+  .footer-note{
+    text-align:center;color:var(--muted-2);font-size:11px;margin:36px 16px 0;
+  }
+
+  @media (max-width:640px){
+    .kpis{grid-template-columns:repeat(2,1fr);}
+    .brand h1{font-size:21px;}
+    .cards{grid-template-columns:1fr;}
+  }
+</style>
 </head>
-<body class="bg-darkBg text-slate-100 min-h-screen font-sans antialiased">
+<body>
+<div id="app"></div>
 
-    <!-- CONFIGURACIÓN HARDCODEADA OPCIONAL -->
-    <script>
-        const HARDCODED_SHEET_ID = "1N0iNUEpM85pPNJlpXrj2ccmBA0kLYMSfLphIxUs8Llw"; 
-        const HARDCODED_SHEET_NAME = "REGISTRO PRODUCCION";
-    </script>
+<script>
+(function(){
 
-    <!-- MODAL DE CONFIGURACIÓN DE HOJA -->
-    <div id="modal-config" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-        <div class="bg-darkCard p-6 rounded-2xl max-w-md w-full border border-slate-700 shadow-2xl space-y-4">
-            <div class="flex items-center gap-3">
-                <div class="p-3 bg-blue-500/10 text-blue-400 rounded-xl">
-                    <i class="fa-solid fa-file-excel text-xl"></i>
-                </div>
-                <div>
-                    <h3 class="text-lg font-bold">Conectar Google Sheet</h3>
-                    <p class="text-xs text-slate-400">Ingresá los datos de la planilla compartida</p>
-                </div>
-            </div>
-            <div>
-                <label class="block text-xs font-semibold mb-1 text-slate-400">Google Sheet ID *</label>
-                <input type="text" id="cfg-sheet-id" placeholder="ej: 1BxiMVs0XRA5nFMdAcB93..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 text-slate-200">
-            </div>
-            <div>
-                <label class="block text-xs font-semibold mb-1 text-slate-400">Nombre de la Pestaña *</label>
-                <input type="text" id="cfg-sheet-name" value="REGISTRO PRODUCCION" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 text-slate-200">
-            </div>
-            <div class="flex gap-2 pt-2">
-                <button onclick="guardarConfiguracionManual()" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold text-sm transition-colors shadow-lg">
-                    Guardar y Conectar
-                </button>
-                <button onclick="document.getElementById('modal-config').classList.add('hidden')" class="px-4 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs text-slate-400 font-semibold">
-                    Cancelar
-                </button>
-            </div>
+/* ============================================================
+   CONFIG / STORAGE
+   ============================================================ */
+const DEFAULT_SHEET_NAME = "REGISTRO PRODUCCION";
+const AUTO_REFRESH_MS = 5 * 60 * 1000;
+
+/* Para dejar la app ya conectada al desplegarla (opcional):
+   completá estos dos valores y el panel arranca directo, sin pantalla de configuración.
+   Igual se puede cambiar en cualquier momento desde el botón ⚙ del panel. */
+const HARDCODED_SHEET_ID = "";
+const HARDCODED_SHEET_NAME = "";
+
+const STORAGE_KEY = "panel_produccion_config";
+
+let config = { sheetId:HARDCODED_SHEET_ID, sheetName:HARDCODED_SHEET_NAME || DEFAULT_SHEET_NAME };
+let rawRows = [];
+let lastSync = null;
+let syncError = null;
+let loading = false;
+let demoMode = false;
+
+let ui = {
+  view:"setup", // setup | dashboard
+  proceso:"__ALL__",
+  search:"",
+  onlyPending:true,
+  sort:"prioridad",
+  expandedGroups:{},
+  visibleCount:60,
+  hideValidated:false
+};
+
+/* Validación manual de pintura — marca LOCAL al dispositivo (localStorage),
+   no se escribe en la planilla ni se comparte entre dispositivos. */
+const VALID_KEY = "panel_validaciones_pintura";
+let validations = {};
+function rowKey(r){
+  return [r.modulo, r.proceso, r.cod1||r.cod2||r.producto||"", r.descripcion||""].join("||");
+}
+function loadValidations(){
+  try{ validations = JSON.parse(localStorage.getItem(VALID_KEY) || "{}"); }
+  catch(e){ validations = {}; }
+}
+function saveValidations(){
+  try{ localStorage.setItem(VALID_KEY, JSON.stringify(validations)); }catch(e){}
+}
+function isValidated(r){ return !!validations[rowKey(r)]; }
+function toggleValidatedKey(key){
+  if(validations[key]) delete validations[key];
+  else validations[key] = {ts:Date.now()};
+  saveValidations();
+}
+
+/* Reparto sugerido de sierra — cantidad de sierras disponibles, persistida local */
+const SAW_KEY = "panel_sierra_count";
+let sierraCount = 5;
+function loadSierraCount(){
+  try{ const v = parseInt(localStorage.getItem(SAW_KEY)); if(v>0) sierraCount = v; }catch(e){}
+}
+function saveSierraCount(){
+  try{ localStorage.setItem(SAW_KEY, String(sierraCount)); }catch(e){}
+}
+function computeSawDistribution(rows, n){
+  const saws = Array.from({length:n}, (_,i)=>({id:i+1, items:[], horas:0}));
+  const sorted = rows.slice().sort((a,b)=> (b.horasTotales - a.horasTotales) || (a.prioridad - b.prioridad));
+  sorted.forEach(r=>{
+    saws.sort((a,b)=>a.horas-b.horas);
+    const restante = (r.horasTotales||0) * Math.max(1-Math.min(r.avance,1),0.15);
+    saws[0].items.push(r);
+    saws[0].horas += restante;
+  });
+  saws.sort((a,b)=>a.id-b.id);
+  return saws;
+}
+
+/* ============================================================
+   STORAGE HELPERS
+   Persistencia en el navegador (localStorage) — funciona en cualquier
+   hosting (Vercel, GitHub Pages, etc). Se puede sobreescribir por URL:
+   ?sheetId=XXXX&sheet=NOMBRE (útil para dejar un acceso directo en un
+   celular/tablet del taller apuntado a una hoja específica).
+   ============================================================ */
+async function loadConfig(){
+  try{
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if(saved){
+      config = Object.assign(config, JSON.parse(saved));
+    }
+  }catch(e){ /* localStorage no disponible o sin datos */ }
+
+  try{
+    const params = new URLSearchParams(window.location.search);
+    if(params.get('sheetId')) config.sheetId = params.get('sheetId');
+    if(params.get('sheet')) config.sheetName = params.get('sheet');
+  }catch(e){ /* ignore */ }
+}
+async function saveConfig(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(config)); }
+  catch(e){ console.error('no se pudo guardar config', e); }
+}
+
+/* ============================================================
+   HEADER NORMALIZATION + FIELD MAP
+   ============================================================ */
+function normHeader(h){
+  return (h||"")
+    .toString()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g,"");
+}
+
+const FIELD_MAP = {
+  cod1:["COD1"],
+  cod2:["COD2"],
+  modulo:["EQUIPOMODULO","MODULO"],
+  prioridad:["PRIORIDAD"],
+  proceso:["PROCESO"],
+  producto:["PRODUCTO"],
+  descripcion:["DESCRIPCION"],
+  cantNecesaria:["CANTNECESARIA"],
+  cantTotal:["CANTTOTAL"],
+  pendiente:["PENDIENTE"],
+  horasTotales:["HORASTOTALES"],
+  avance:["AVANCE"],
+  realiza:["REALIZA"],
+  cliente:["CLIENTE"],
+  nOT:["NOT","NROOT","NUMEROOT"],
+  comentarios:["COMENTARIOSANADIRPROCESO","COMENTARIOS"]
+};
+
+function buildColumnIndex(headers){
+  const normed = headers.map(normHeader);
+  const idx = {};
+  for(const field in FIELD_MAP){
+    const candidates = FIELD_MAP[field];
+    let found = -1;
+    // exact match first
+    for(let i=0;i<normed.length;i++){
+      if(candidates.includes(normed[i])){ found = i; break; }
+    }
+    // fallback: contains match (skip fields prone to collision)
+    if(found === -1 && !["nOT"].includes(field)){
+      for(let i=0;i<normed.length;i++){
+        if(candidates.some(c=>normed[i].includes(c))){ found = i; break; }
+      }
+    }
+    idx[field] = found;
+  }
+  return idx;
+}
+
+/* ============================================================
+   GOOGLE SHEETS (gviz) FETCH — vía JSONP
+   El endpoint gviz de Google no siempre entrega los headers CORS
+   necesarios para usarse con fetch()/XHR directo. La forma robusta
+   de leerlo desde el navegador es inyectar un <script> con
+   tqx=responseHandler (JSONP), que no depende de CORS.
+   ============================================================ */
+let jsonpSeq = 0;
+function jsonpFetch(url, timeoutMs){
+  return new Promise((resolve, reject)=>{
+    const cbName = "gvizCb_" + (jsonpSeq++) + "_" + Date.now();
+    const script = document.createElement('script');
+    let settled = false;
+
+    const cleanup = ()=>{
+      try{ delete window[cbName]; }catch(e){ window[cbName] = undefined; }
+      if(script.parentNode) script.parentNode.removeChild(script);
+      clearTimeout(timer);
+    };
+    const timer = setTimeout(()=>{
+      if(settled) return;
+      settled = true;
+      cleanup();
+      reject(new Error("Tiempo de espera agotado consultando Google Sheets. Revisá tu conexión o si la hoja es muy pesada."));
+    }, timeoutMs || 15000);
+
+    window[cbName] = (data)=>{
+      if(settled) return;
+      settled = true;
+      cleanup();
+      resolve(data);
+    };
+    script.onerror = ()=>{
+      if(settled) return;
+      settled = true;
+      cleanup();
+      reject(new Error("No se pudo cargar la hoja. Verificá el ID y que esté compartida como \"Cualquier persona con el enlace: Lector\"."));
+    };
+    script.src = url + (url.includes("?") ? "&" : "?") + "tqx=out:json;responseHandler:" + cbName;
+    document.body.appendChild(script);
+  });
+}
+
+function buildGvizUrl(sheetId, sheetName){
+  const base = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetId)}/gviz/tq`;
+  return `${base}?sheet=${encodeURIComponent(sheetName)}`;
+}
+
+async function fetchSheet(sheetId, sheetName){
+  const url = buildGvizUrl(sheetId, sheetName);
+  let json;
+  try{
+    json = await jsonpFetch(url);
+  }catch(e){
+    throw new Error(e.message || "No se pudo conectar con Google Sheets.");
+  }
+  if(!json || !json.table){
+    throw new Error("La hoja no devolvió datos en el formato esperado. Revisá el ID y el nombre de la pestaña.");
+  }
+  if(json.status === "error"){
+    const msg = (json.errors && json.errors[0] && json.errors[0].detailed_message) || "Error desconocido de Google Sheets.";
+    throw new Error(msg);
+  }
+  const table = json.table;
+  const headers = table.cols.map(c => c.label || c.id || "");
+  const idx = buildColumnIndex(headers);
+
+  const rows = table.rows.map(r=>{
+    const cells = r.c || [];
+    const get = (field)=>{
+      const i = idx[field];
+      if(i===-1 || i===undefined || !cells[i]) return null;
+      const cell = cells[i];
+      return cell.v !== undefined ? cell.v : (cell.f !== undefined ? cell.f : null);
+    };
+    const num = (field)=>{
+      const v = get(field);
+      const n = typeof v === "number" ? v : parseFloat(v);
+      return isNaN(n) ? 0 : n;
+    };
+    return {
+      cod1: get('cod1') || "",
+      cod2: get('cod2') || "",
+      modulo: (get('modulo') || "SIN MÓDULO").toString().trim(),
+      prioridad: (()=>{ const v=get('prioridad'); const n=parseFloat(v); return isNaN(n) ? 999999 : n; })(),
+      proceso: (get('proceso') || "SIN PROCESO").toString().trim(),
+      producto: get('producto') || "",
+      descripcion: get('descripcion') || (get('producto') || "Sin descripción"),
+      cantNecesaria: num('cantNecesaria'),
+      cantTotal: num('cantTotal'),
+      pendiente: num('pendiente'),
+      horasTotales: num('horasTotales'),
+      avance: num('avance'),
+      realiza: get('realiza') || "",
+      cliente: get('cliente') || "",
+      nOT: get('nOT') || "",
+      comentarios: get('comentarios') || ""
+    };
+  }).filter(r => r.modulo && r.modulo !== "SIN MÓDULO" || r.proceso !== "SIN PROCESO");
+
+  return rows;
+}
+
+/* ============================================================
+   DEMO DATA (para probar el panel antes de conectar la hoja real)
+   ============================================================ */
+function getDemoRows(){
+  const mods = ["FRONT (X6)","ROTORES (X6)","ZARANDA (X6)","CANASTA(X6)","CINTA(X6)"];
+  const procs = ["AGUJEREADO","CORTE COMPUTARIZADO POR PANTOGRAFO","MECANIZADO","SOLDADO","PLEGADO","PINTADO"];
+  const rows = [];
+  let p = 1272;
+  mods.forEach((mod,mi)=>{
+    procs.forEach((proc,pi)=>{
+      for(let i=0;i<4;i++){
+        const necesaria = [6,12,18,30,60][Math.floor(Math.random()*5)];
+        const avance = [0,0,0.33,0.5,0.75,1,1][Math.floor(Math.random()*7)];
+        rows.push({
+          cod1:(1000+mi*100+pi*10+i).toString(),
+          cod2:"",
+          modulo:mod,
+          prioridad:p+mi,
+          proceso:proc,
+          producto:"DEMO-"+(1000+mi*100+pi*10+i),
+          descripcion:"Pieza demo " + proc.toLowerCase() + " " + (i+1),
+          cantNecesaria:necesaria,
+          cantTotal: Math.round(necesaria*avance),
+          pendiente: Math.round(necesaria*(1-avance)),
+          horasTotales: +(Math.random()*8).toFixed(1),
+          avance: avance,
+          realiza: avance>0 ? ["J. MOSEVICH","ROTOLASER","TALLER"][i%3] : "",
+          cliente:"",
+          nOT: "OT-" + (5000+mi*10+pi),
+          comentarios:""
+        });
+      }
+    });
+  });
+  return rows;
+}
+
+/* ============================================================
+   DATA HELPERS
+   ============================================================ */
+function statusOf(row){
+  if(row.avance >= 1) return "completo";
+  if(row.avance > 0) return "progreso";
+  return "pendiente";
+}
+function statusColor(st){
+  return st==="completo" ? "var(--green)" : st==="progreso" ? "var(--blue)" : "var(--yellow)";
+}
+function pct(n){ return Math.round(n*100); }
+function esc(s){
+  return (s===null||s===undefined?"":s.toString())
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function fmtNum(n){
+  if(Math.abs(n - Math.round(n)) < 0.01) return Math.round(n).toString();
+  return n.toFixed(1);
+}
+
+function getFilteredRows(){
+  let rows = rawRows;
+  if(ui.proceso !== "__ALL__"){
+    rows = rows.filter(r=>r.proceso === ui.proceso);
+  }
+  if(ui.onlyPending){
+    rows = rows.filter(r=>r.avance < 1);
+  }
+  if(ui.proceso === 'PINTADO' && ui.hideValidated){
+    rows = rows.filter(r=>!isValidated(r));
+  }
+  if(ui.search.trim()){
+    const q = ui.search.trim().toLowerCase();
+    rows = rows.filter(r=>
+      (r.descripcion||"").toLowerCase().includes(q) ||
+      (r.producto||"").toLowerCase().includes(q) ||
+      (r.cod1||"").toString().toLowerCase().includes(q) ||
+      (r.cod2||"").toString().toLowerCase().includes(q) ||
+      (r.cliente||"").toLowerCase().includes(q) ||
+      (r.nOT||"").toString().toLowerCase().includes(q) ||
+      (r.modulo||"").toLowerCase().includes(q)
+    );
+  }
+  return rows;
+}
+
+function computeKpis(rows){
+  const totalPiezas = rows.length;
+  const pendientes = rows.filter(r=>r.avance < 1).length;
+  const horasPend = rows.reduce((a,r)=> a + (r.avance<1 ? r.horasTotales*(1-Math.min(r.avance,1)) : 0), 0);
+  const necTotal = rows.reduce((a,r)=>a+r.cantNecesaria,0);
+  const hechoTotal = rows.reduce((a,r)=>a+Math.min(r.cantTotal, r.cantNecesaria||r.cantTotal),0);
+  const avanceGlobal = necTotal>0 ? hechoTotal/necTotal : 0;
+  return {totalPiezas, pendientes, horasPend, avanceGlobal};
+}
+
+function computeProcesos(){
+  const map = {};
+  rawRows.forEach(r=>{
+    if(!map[r.proceso]) map[r.proceso] = {total:0, pend:0};
+    map[r.proceso].total++;
+    if(r.avance < 1) map[r.proceso].pend++;
+  });
+  return Object.keys(map).sort((a,b)=>map[b].pend - map[a].pend).map(k=>({name:k, ...map[k]}));
+}
+
+function computeProcesoSummary(proceso){
+  const rows = rawRows.filter(r=>r.proceso === proceso);
+  const total = rows.length;
+  const pend = rows.filter(r=>r.avance<1).length;
+  const necTotal = rows.reduce((a,r)=>a+r.cantNecesaria,0);
+  const hechoTotal = rows.reduce((a,r)=>a+Math.min(r.cantTotal, r.cantNecesaria||r.cantTotal),0);
+  const avance = necTotal>0 ? hechoTotal/necTotal : (total ? rows.reduce((a,r)=>a+Math.min(r.avance,1),0)/total : 0);
+  const horasPend = rows.reduce((a,r)=> a + (r.avance<1 ? r.horasTotales*(1-Math.min(r.avance,1)) : 0), 0);
+  const horasHechas = rows.reduce((a,r)=> a + r.horasTotales*Math.min(r.avance,1), 0);
+  const modulosActivos = new Set(rows.filter(r=>r.avance<1).map(r=>r.modulo)).size;
+  return {proceso, total, pend, avance, horasPend, horasHechas, modulosActivos};
+}
+
+function groupByModulo(rows){
+  const map = {};
+  rows.forEach(r=>{
+    if(!map[r.modulo]) map[r.modulo] = [];
+    map[r.modulo].push(r);
+  });
+  const groups = Object.keys(map).map(k=>{
+    const items = map[k].slice().sort((a,b)=> a.prioridad - b.prioridad);
+    const nec = items.reduce((a,r)=>a+r.cantNecesaria,0);
+    const hecho = items.reduce((a,r)=>a+Math.min(r.cantTotal, r.cantNecesaria||r.cantTotal),0);
+    const avance = nec>0 ? hecho/nec : (items.length ? items.reduce((a,r)=>a+r.avance,0)/items.length : 0);
+    const prio = Math.min(...items.map(i=>i.prioridad));
+    return {modulo:k, items, avance, prio};
+  });
+  groups.sort((a,b)=>a.prio - b.prio);
+  return groups;
+}
+
+/* ============================================================
+   RENDER: SETUP SCREEN
+   ============================================================ */
+function renderSetup(){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="setup">
+      <div class="hazard-rule" style="margin-bottom:26px;"></div>
+      <div class="card-setup">
+        <div class="eyebrow" style="font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase;font-weight:600;margin-bottom:6px;">PCP · C&amp;S AGRO</div>
+        <h1>Panel de Producción</h1>
+        <p>Conectá la Google Sheet con la base de <b style="color:var(--ink)">REGISTRO PRODUCCION</b> para ver el avance en vivo, por proceso y por módulo.</p>
+
+        <div class="field">
+          <label>ID de la hoja de cálculo</label>
+          <input id="inp-sheetid" type="text" placeholder="1AbCdEfGhIjKlMnOpQrStUvWxYz..." value="${esc(config.sheetId)}">
+          <div class="hint">Es la parte de la URL entre <span class="mono">/d/</span> y <span class="mono">/edit</span></div>
         </div>
+        <div class="field">
+          <label>Nombre de la pestaña</label>
+          <input id="inp-sheetname" type="text" placeholder="REGISTRO PRODUCCION" value="${esc(config.sheetName)}">
+        </div>
+
+        ${syncError ? `<div class="err-box">${esc(syncError)}</div>` : ""}
+
+        <div class="actions">
+          <button class="btn primary" id="btn-connect">${loading ? "Conectando…" : "Conectar y cargar"}</button>
+          <button class="btn ghost" id="btn-demo">Ver demo</button>
+        </div>
+
+        <div class="steps">
+          <b>Cómo dejar la hoja lista (una sola vez):</b><br>
+          1. Copiá la pestaña <b>REGISTRO PRODUCCION</b> a una Google Sheet nueva (como valores, no fórmulas).<br>
+          2. Compartir → <b>Cualquier persona con el enlace → Lector</b>. El panel solo lee, nunca escribe.<br>
+          3. Tomá el ID de la URL y pegalo arriba. La carga de datos sigue siendo en la planilla, como hasta ahora.
+        </div>
+      </div>
+      <div class="footer-note">El panel no modifica la planilla. Solo lee y muestra el estado actual.</div>
     </div>
+  `;
+  document.getElementById('btn-connect').onclick = onConnect;
+  document.getElementById('btn-demo').onclick = onDemo;
+}
 
-    <!-- HEADER / BARRA SUPERIOR -->
-    <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-40 px-4 py-3">
-        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
-            <div class="flex items-center justify-between w-full sm:w-auto gap-4">
-                <div class="flex items-center gap-3">
-                    <span class="text-2xl">🚜</span>
-                    <div>
-                        <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-                            AR2200 <span class="text-xs px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-400 border border-blue-500/30 font-semibold">C&S Agro</span>
-                        </h1>
-                        <p class="text-xs text-slate-400">Panel de Avance de Producción</p>
-                    </div>
-                </div>
-                <button onclick="document.getElementById('modal-config').classList.remove('hidden')" class="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors text-slate-400" title="Configurar Planilla">
-                    <i class="fa-solid fa-gear"></i>
-                </button>
-            </div>
+async function onConnect(){
+  const sheetId = document.getElementById('inp-sheetid').value.trim();
+  const sheetName = document.getElementById('inp-sheetname').value.trim() || DEFAULT_SHEET_NAME;
+  if(!sheetId){ syncError = "Ingresá el ID de la hoja."; renderSetup(); return; }
+  config.sheetId = sheetId;
+  config.sheetName = sheetName;
+  loading = true; syncError = null; demoMode = false;
+  renderSetup();
+  try{
+    rawRows = await fetchSheet(sheetId, sheetName);
+    if(rawRows.length === 0) throw new Error("La hoja se conectó pero no se encontraron filas de datos. Revisá el nombre de la pestaña y los encabezados.");
+    lastSync = new Date();
+    await saveConfig();
+    ui.view = "dashboard";
+    render();
+    startAutoRefresh();
+  }catch(e){
+    syncError = e.message || "No se pudo conectar con la hoja.";
+    renderSetup();
+  }finally{
+    loading = false;
+  }
+}
 
-            <!-- CONTROLES Y FILTROS -->
-            <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end text-xs">
-                <select id="filtro-modulo" onchange="aplicarFiltrosYRenderizar()" class="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 font-semibold text-slate-200 focus:outline-none cursor-pointer">
-                    <option value="TODOS">🏭 Todos los Módulos</option>
-                </select>
+function onDemo(){
+  rawRows = getDemoRows();
+  demoMode = true;
+  lastSync = new Date();
+  ui.view = "dashboard";
+  render();
+}
 
-                <select id="filtro-proceso" onchange="aplicarFiltrosYRenderizar()" class="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 font-semibold text-slate-200 focus:outline-none cursor-pointer">
-                    <option value="TODOS">⚙️ Todos los Procesos</option>
-                </select>
+/* ============================================================
+   RENDER: DASHBOARD
+   ============================================================ */
+let refreshTimer = null;
+function startAutoRefresh(){
+  if(refreshTimer) clearInterval(refreshTimer);
+  if(demoMode) return;
+  refreshTimer = setInterval(async ()=>{
+    try{
+      rawRows = await fetchSheet(config.sheetId, config.sheetName);
+      lastSync = new Date();
+      syncError = null;
+    }catch(e){ syncError = e.message; }
+    render();
+  }, AUTO_REFRESH_MS);
+}
 
-                <button onclick="cargarDatosEnVivo()" class="bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-xl font-bold text-white transition-all shadow-md flex items-center gap-1.5">
-                    <i class="fa-solid fa-rotate-right" id="icon-refresh"></i> <span class="hidden sm:inline">Actualizar</span>
-                </button>
-            </div>
+async function manualRefresh(){
+  if(demoMode){ rawRows = getDemoRows(); lastSync = new Date(); render(); return; }
+  loading = true; render();
+  try{
+    rawRows = await fetchSheet(config.sheetId, config.sheetName);
+    lastSync = new Date();
+    syncError = null;
+  }catch(e){ syncError = e.message; }
+  loading = false;
+  render();
+}
+
+function timeAgo(){
+  if(!lastSync) return "";
+  const s = Math.round((Date.now()-lastSync.getTime())/1000);
+  if(s<60) return "hace " + s + "s";
+  const m = Math.round(s/60);
+  if(m<60) return "hace " + m + "min";
+  const h = Math.round(m/60);
+  return "hace " + h + "h";
+}
+
+function renderDashboard(){
+  const app = document.getElementById('app');
+  const filtered = getFilteredRows();
+  const kpis = computeKpis(rawRows);
+  const procesos = computeProcesos();
+  const groups = groupByModulo(filtered);
+  const visible = filtered.length > ui.visibleCount;
+
+  app.innerHTML = `
+    <header class="top">
+      <div class="top-row">
+        <div class="brand">
+          <div class="eyebrow">PCP · C&amp;S AGRO ${demoMode ? "· MODO DEMO" : ""}</div>
+          <h1>PANEL DE <span>PRODUCCIÓN</span></h1>
         </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="sync">
+            <span class="sync-dot ${syncError ? 'err' : (loading?'stale':'')}"></span>
+            ${loading ? "Actualizando…" : (syncError ? "Error de sincronización" : "Actualizado " + timeAgo())}
+          </div>
+          <button class="btn small" id="btn-refresh">↻ Actualizar</button>
+          <button class="btn small ghost" id="btn-config">⚙</button>
+        </div>
+      </div>
+      <div class="hazard-rule"></div>
+
+      <div class="kpis">
+        <div class="kpi">
+          <div class="n">${pct(kpis.avanceGlobal)}%</div>
+          <div class="l">Avance global</div>
+        </div>
+        <div class="kpi warn">
+          <div class="n">${kpis.pendientes}</div>
+          <div class="l">Piezas pendientes</div>
+        </div>
+        <div class="kpi">
+          <div class="n">${fmtNum(kpis.horasPend)}</div>
+          <div class="l">Horas restantes est.</div>
+        </div>
+        <div class="kpi good">
+          <div class="n">${kpis.totalPiezas}</div>
+          <div class="l">Piezas en base</div>
+        </div>
+      </div>
     </header>
 
-    <!-- CONTENEDOR PRINCIPAL -->
-    <main class="max-w-7xl mx-auto p-4 space-y-6">
+    ${syncError ? `<div style="margin:0 16px;" class="err-box">${esc(syncError)}</div>` : ""}
 
-        <!-- STATUS BAR DE REFRESH AUTOMÁTICO -->
-        <div class="flex items-center justify-between text-xs text-slate-400 bg-slate-900/40 px-4 py-2 rounded-xl border border-slate-800/80">
-            <div class="flex items-center gap-2">
-                <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-500"></span>
-                <span id="status-texto">Cargando datos...</span>
-            </div>
-            <span id="ultima-act" class="font-mono text-[11px]">Última sincro: --:--</span>
+    <div class="filters">
+      <input class="search" id="inp-search" type="text" placeholder="Buscar código, descripción, cliente, OT…" value="${esc(ui.search)}">
+      <label class="toggle"><input type="checkbox" id="chk-pending" ${ui.onlyPending?"checked":""}> Solo pendientes</label>
+      <select class="sortsel" id="sel-sort">
+        <option value="prioridad" ${ui.sort==='prioridad'?'selected':''}>Orden: Prioridad</option>
+        <option value="avance" ${ui.sort==='avance'?'selected':''}>Orden: Menor avance</option>
+        <option value="horas" ${ui.sort==='horas'?'selected':''}>Orden: Más horas</option>
+      </select>
+    </div>
+
+    <div class="tabs-wrap">
+      <div class="tabs">
+        <div class="tab ${ui.proceso==='__ALL__'?'active':''}" data-proc="__ALL__">
+          TODOS <span class="badge">${rawRows.filter(r=>r.avance<1).length}</span>
         </div>
+        ${procesos.map(p=>`
+          <div class="tab ${ui.proceso===p.name?'active':''}" data-proc="${esc(p.name)}">
+            ${esc(p.name)} <span class="badge ${p.pend===0?'zero':''}">${p.pend}</span>
+          </div>
+        `).join("")}
+      </div>
+    </div>
 
-        <!-- TARJETAS METRICAS GLOBALES -->
-        <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <div class="bg-darkCard p-4 rounded-2xl border border-slate-800">
-                <p class="text-xs font-semibold text-slate-400 mb-1">Total Piezas / Ítems</p>
-                <h3 id="metric-total" class="text-2xl font-black text-slate-100">0</h3>
+    <div id="proceso-extra"></div>
+
+    <div id="groups-wrap"></div>
+
+    <div class="footer-note">
+      ${demoMode ? "Estás viendo datos de demostración." : `Fuente: Google Sheets · pestaña “${esc(config.sheetName)}” · solo lectura`}
+    </div>
+  `;
+
+  renderProcesoExtra();
+  renderGroups(groups);
+
+  document.getElementById('btn-refresh').onclick = manualRefresh;
+  document.getElementById('btn-config').onclick = ()=>{ ui.view='setup'; syncError=null; render(); };
+  document.getElementById('inp-search').oninput = (e)=>{ ui.search = e.target.value; ui.visibleCount=60; renderDashboardDebounced(); };
+  document.getElementById('chk-pending').onchange = (e)=>{ ui.onlyPending = e.target.checked; ui.visibleCount=60; render(); };
+  document.getElementById('sel-sort').onchange = (e)=>{ ui.sort = e.target.value; render(); };
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.onclick = ()=>{ ui.proceso = t.getAttribute('data-proc'); ui.visibleCount=60; render(); };
+  });
+}
+
+let searchDebounce = null;
+function renderDashboardDebounced(){
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(()=>{ render(); }, 220);
+  // keep focus on input across re-render
+}
+
+function renderProcesoExtra(){
+  const el = document.getElementById('proceso-extra');
+  if(!el) return;
+  let html = "";
+  if(ui.proceso !== '__ALL__'){
+    html += procesoSummaryHtml(ui.proceso);
+  }
+  if(ui.proceso === 'CORTE SIERRA'){
+    html += sawPanelHtml();
+  }else if(ui.proceso === 'PINTADO'){
+    html += pinturaBannerHtml();
+  }
+  el.innerHTML = html;
+  attachSawHandlers();
+  attachPinturaBannerHandlers();
+}
+
+function procesoSummaryHtml(proceso){
+  const s = computeProcesoSummary(proceso);
+  return `
+    <div class="extra-panel proc-summary">
+      <div class="extra-head">
+        <h3>${esc(proceso)} — estado actual</h3>
+        <span class="extra-hint" style="margin:0;">${s.modulosActivos} módulo${s.modulosActivos===1?'':'s'} con pendientes</span>
+      </div>
+      <div class="proc-kpis">
+        <div class="proc-kpi">
+          <div class="n">${pct(s.avance)}%</div>
+          <div class="l">Avance (por cantidad)</div>
+        </div>
+        <div class="proc-kpi warn">
+          <div class="n">${s.pend}<span class="of">/${s.total}</span></div>
+          <div class="l">Piezas pendientes</div>
+        </div>
+        <div class="proc-kpi">
+          <div class="n">${fmtNum(s.horasPend)}</div>
+          <div class="l">Horas pendientes est.</div>
+        </div>
+        <div class="proc-kpi good">
+          <div class="n">${fmtNum(s.horasHechas)}</div>
+          <div class="l">Horas ya invertidas est.</div>
+        </div>
+      </div>
+      <div class="extra-hint">Sin capacidad instalada cargada todavía — no se puede calcular cobertura en semanas/meses para este proceso, solo el stock pendiente actual.</div>
+    </div>
+  `;
+}
+
+function sawPanelHtml(){
+  const pend = rawRows.filter(r=>r.proceso==='CORTE SIERRA' && r.avance<1);
+  if(pend.length===0){
+    return `<div class="extra-panel"><div class="extra-empty">No hay piezas pendientes de corte en sierra ahora mismo.</div></div>`;
+  }
+  const saws = computeSawDistribution(pend, sierraCount);
+  const maxHoras = Math.max(...saws.map(s=>s.horas), 0.001);
+  return `
+    <div class="extra-panel">
+      <div class="extra-head">
+        <h3>Reparto sugerido de corte — ${pend.length} pieza${pend.length===1?'':'s'} pendiente${pend.length===1?'':'s'}</h3>
+        <label class="saw-count-field">Sierras disponibles
+          <input type="number" id="inp-saw-count" min="1" max="12" value="${sierraCount}">
+        </label>
+      </div>
+      <div class="saw-grid">
+        ${saws.map(s=>`
+          <div class="saw-card">
+            <div class="saw-card-top">
+              <span class="saw-id">SIERRA ${s.id}</span>
+              <span class="saw-hours mono">${fmtNum(s.horas)} h</span>
             </div>
-            <div class="bg-darkCard p-4 rounded-2xl border border-slate-800">
-                <p class="text-xs font-semibold text-slate-400 mb-1">Pendientes</p>
-                <h3 id="metric-pendiente" class="text-2xl font-black text-amber-400">0</h3>
-            </div>
-            <div class="bg-darkCard p-4 rounded-2xl border border-slate-800">
-                <p class="text-xs font-semibold text-slate-400 mb-1">Completadas</p>
-                <h3 id="metric-completado" class="text-2xl font-black text-emerald-400">0</h3>
-            </div>
-            <div class="bg-darkCard p-4 rounded-2xl border border-slate-800 col-span-2 lg:col-span-1">
-                <p class="text-xs font-semibold text-slate-400 mb-1">Avance General</p>
-                <div class="flex items-baseline gap-2">
-                    <h3 id="metric-pct" class="text-2xl font-black text-blue-400">0%</h3>
-                </div>
-                <div class="w-full bg-slate-900 h-2 rounded-full mt-2 overflow-hidden border border-slate-800">
-                    <div id="bar-pct-global" class="bg-blue-500 h-full w-0 transition-all duration-500"></div>
-                </div>
-            </div>
-        </section>
+            <div class="saw-bar"><i style="width:${Math.round((s.horas/maxHoras)*100)}%"></i></div>
+            <ul class="saw-items">
+              ${s.items.length ? s.items.map(it=>`<li><span>${esc(it.descripcion)}</span><span class="mono">${fmtNum(it.horasTotales)}h</span></li>`).join("") : '<li class="empty-item">Sin piezas asignadas</li>'}
+            </ul>
+          </div>
+        `).join("")}
+      </div>
+      <div class="extra-hint">Reparto sugerido balanceando horas estimadas entre sierras (cálculo simple en el navegador). No refleja una asignación real cargada en la planilla — es solo una propuesta de orden de trabajo.</div>
+    </div>
+  `;
+}
+function attachSawHandlers(){
+  const inp = document.getElementById('inp-saw-count');
+  if(inp) inp.onchange = (e)=>{
+    let v = parseInt(e.target.value) || 1;
+    v = Math.max(1, Math.min(12, v));
+    sierraCount = v;
+    saveSierraCount();
+    renderProcesoExtra();
+  };
+}
 
-        <!-- RESUMEN AGRUPADO POR MÓDULO Y PROCESO -->
-        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-darkCard p-5 rounded-2xl border border-slate-800 space-y-4">
-                <h3 class="text-sm font-bold text-slate-200 border-b border-slate-800 pb-2 flex items-center gap-2">
-                    <i class="fa-solid fa-cubes text-blue-400"></i> Avance por Módulo / Equipo
-                </h3>
-                <div id="contenedor-modulos" class="space-y-3 max-h-[400px] overflow-y-auto pr-1"></div>
-            </div>
+function pinturaBannerHtml(){
+  const pintRows = rawRows.filter(r=>r.proceso==='PINTADO');
+  const validCount = pintRows.filter(isValidated).length;
+  return `
+    <div class="extra-panel">
+      <div class="extra-head">
+        <h3>Validación de pintura</h3>
+        <label class="toggle" style="margin:0;"><input type="checkbox" id="chk-hide-valid" ${ui.hideValidated?"checked":""}> Ocultar validadas</label>
+      </div>
+      <div class="extra-hint">${validCount}/${pintRows.length} piezas marcadas como validadas en este dispositivo. Es una marca local para el taller — no se guarda en la planilla ni se comparte con otros dispositivos o navegadores.</div>
+    </div>
+  `;
+}
+function attachPinturaBannerHandlers(){
+  const chk = document.getElementById('chk-hide-valid');
+  if(chk) chk.onchange = (e)=>{ ui.hideValidated = e.target.checked; ui.visibleCount=60; render(); };
+}
 
-            <div class="bg-darkCard p-5 rounded-2xl border border-slate-800 space-y-4">
-                <h3 class="text-sm font-bold text-slate-200 border-b border-slate-800 pb-2 flex items-center gap-2">
-                    <i class="fa-solid fa-gears text-emerald-400"></i> Avance por Proceso
-                </h3>
-                <div id="contenedor-procesos" class="space-y-3 max-h-[400px] overflow-y-auto pr-1"></div>
-            </div>
-        </section>
+function sortItems(items){
+  const arr = items.slice();
+  if(ui.sort==='avance') arr.sort((a,b)=>a.avance-b.avance || a.prioridad-b.prioridad);
+  else if(ui.sort==='horas') arr.sort((a,b)=>b.horasTotales-a.horasTotales);
+  else arr.sort((a,b)=>a.prioridad-b.prioridad);
+  return arr;
+}
 
-        <!-- TABLA DETALLADA -->
-        <section class="bg-darkCard rounded-2xl border border-slate-800 overflow-hidden">
-            <div class="p-4 border-b border-slate-800 flex justify-between items-center">
-                <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
-                    <i class="fa-solid fa-list-check text-slate-400"></i> Registro de Detalle en Taller
-                </h3>
-                <span id="cant-registros-tabla" class="text-xs text-slate-400">0 ítems</span>
-            </div>
-            <div class="overflow-x-auto max-h-[500px]">
-                <table class="w-full text-left text-xs border-collapse">
-                    <thead class="bg-slate-900/80 text-slate-400 sticky top-0 z-10 backdrop-blur border-b border-slate-800">
-                        <tr>
-                            <th class="p-3">Prio</th>
-                            <th class="p-3">Módulo / Equipo</th>
-                            <th class="p-3">Proceso</th>
-                            <th class="p-3 text-right">Cant. Total</th>
-                            <th class="p-3 text-right">Pendiente</th>
-                            <th class="p-3 text-center">Avance</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tbody-registros" class="divide-y divide-slate-800/60 text-slate-300 font-mono">
-                        <tr>
-                            <td colspan="6" class="p-4 text-center text-slate-500 italic">Cargando datos...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-    </main>
+function renderGroups(groups){
+  const wrap = document.getElementById('groups-wrap');
+  if(groups.length===0){
+    wrap.innerHTML = `<div class="empty">No hay piezas que coincidan con el filtro actual.</div>`;
+    return;
+  }
+  let budget = ui.visibleCount;
+  let html = "";
+  for(const g of groups){
+    if(budget <= 0) break;
+    const items = sortItems(g.items).slice(0, budget);
+    budget -= items.length;
+    html += `
+      <div class="group">
+        <div class="group-head">
+          <h2>${esc(g.modulo)}</h2>
+          <div class="meta">${pct(g.avance)}% · ${g.items.length} pieza${g.items.length===1?'':'s'}</div>
+        </div>
+        <div class="group-bar"><i style="width:${Math.min(pct(g.avance),100)}%;"></i></div>
+        <div class="cards" style="margin-top:12px;">
+          ${items.map(cardHtml).join("")}
+        </div>
+      </div>
+    `;
+  }
+  const totalShown = groups.reduce((a,g)=>a+Math.min(g.items.length, ui.visibleCount),0);
+  const totalAll = groups.reduce((a,g)=>a+g.items.length,0);
+  wrap.innerHTML = html;
+  if(totalAll > ui.visibleCount){
+    const div = document.createElement('div');
+    div.className = 'loadmore';
+    div.innerHTML = `<button class="btn">Mostrar más (${totalAll - ui.visibleCount} restantes)</button>`;
+    div.querySelector('button').onclick = ()=>{ ui.visibleCount += 60; render(); };
+    wrap.appendChild(div);
+  }
+  wrap.querySelectorAll('.chk-valid').forEach(chk=>{
+    chk.onchange = (e)=>{
+      const card = e.target.closest('.card');
+      const key = card.getAttribute('data-key');
+      if(key){ toggleValidatedKey(key); render(); }
+    };
+  });
+}
 
-    <script>
-        let rawData = [];
-        let sheetIdActive = "";
-        let sheetNameActive = "";
+function cardHtml(r){
+  const st = statusOf(r);
+  const stLabel = st==='completo' ? 'Completo' : st==='progreso' ? 'En curso' : 'Pendiente';
+  const code = r.cod1 || r.cod2 || r.producto;
+  const isPintura = r.proceso === 'PINTADO';
+  const validated = isPintura && isValidated(r);
+  return `
+    <div class="card st-${st}${validated?' st-validated':''}"${isPintura?` data-key="${esc(rowKey(r))}"`:""}>
+      <div class="card-top">
+        <div class="card-prio"><span class="num">${r.prioridad===999999?'—':r.prioridad}</span> ${esc(r.proceso)}</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${isPintura ? `<label class="chk-validado"><input type="checkbox" class="chk-valid" ${validated?"checked":""}> Validado</label>` : ""}
+          <div class="card-status ${st}">${stLabel}</div>
+        </div>
+      </div>
+      <div class="card-desc">${esc(r.descripcion)}</div>
+      <div class="card-code">${esc(code)}${r.cliente ? " · " + esc(r.cliente) : ""}</div>
+      <div class="card-row">
+        <div class="card-qty">Necesaria <b>${fmtNum(r.cantNecesaria)}</b> · Hecha <b>${fmtNum(Math.min(r.cantTotal,r.cantNecesaria||r.cantTotal))}</b> · Pend. <b>${fmtNum(Math.max(r.pendiente,0))}</b></div>
+        <div class="card-pct" style="color:${statusColor(st)}">${pct(r.avance)}%</div>
+      </div>
+      <div class="bar"><i style="width:${Math.min(pct(r.avance),100)}%;background:${statusColor(st)};"></i></div>
+      <div class="card-foot">
+        <span>${r.realiza ? "Realiza: <b>"+esc(r.realiza)+"</b>" : ""}</span>
+        <span>${r.nOT ? "OT: <b>"+esc(r.nOT)+"</b>" : ""}${r.horasTotales ? " · "+fmtNum(r.horasTotales)+"h" : ""}</span>
+      </div>
+    </div>
+  `;
+}
 
-        document.addEventListener("DOMContentLoaded", () => {
-            detectarCredenciales();
-            cargarDatosEnVivo();
-            setInterval(cargarDatosEnVivo, 300000); // 5 min refresh
-        });
+/* ============================================================
+   ROOT RENDER
+   ============================================================ */
+function render(){
+  if(ui.view === 'setup') renderSetup();
+  else renderDashboard();
+}
 
-        function detectarCredenciales() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlId = urlParams.get('sheetId');
-            const urlName = urlParams.get('sheet');
+/* ============================================================
+   INIT
+   ============================================================ */
+(async function init(){
+  loadValidations();
+  loadSierraCount();
+  await loadConfig();
+  render();
+  if(config.sheetId){
+    loading = true; render();
+    try{
+      rawRows = await fetchSheet(config.sheetId, config.sheetName);
+      lastSync = new Date();
+      ui.view = 'dashboard';
+      startAutoRefresh();
+    }catch(e){
+      syncError = e.message;
+    }
+    loading = false;
+    render();
+  }
+})();
 
-            sheetIdActive = urlId || HARDCODED_SHEET_ID || localStorage.getItem("panel_sheet_id") || "";
-            sheetNameActive = urlName || HARDCODED_SHEET_NAME || localStorage.getItem("panel_sheet_name") || "REGISTRO PRODUCCION";
-
-            document.getElementById("cfg-sheet-id").value = sheetIdActive;
-            document.getElementById("cfg-sheet-name").value = sheetNameActive;
-
-            if (!sheetIdActive) {
-                document.getElementById('modal-config').classList.remove('hidden');
-            }
-        }
-
-        function guardarConfiguracionManual() {
-            sheetIdActive = document.getElementById("cfg-sheet-id").value.trim();
-            sheetNameActive = document.getElementById("cfg-sheet-name").value.trim();
-
-            localStorage.setItem("panel_sheet_id", sheetIdActive);
-            localStorage.setItem("panel_sheet_name", sheetNameActive);
-
-            document.getElementById('modal-config').classList.add('hidden');
-            cargarDatosEnVivo();
-        }
-
-        async function cargarDatosEnVivo() {
-            if (!sheetIdActive) return;
-
-            const icon = document.getElementById("icon-refresh");
-            icon.classList.add("fa-spin");
-            actualizarStatus("bg-amber-500", "Sincronizando con Google Sheets...");
-
-            const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetIdActive}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetNameActive)}`;
-
-            try {
-                const response = await fetch(csvUrl);
-                if (!response.ok) throw new Error("Error en la respuesta de Google");
-                
-                const csvText = await response.text();
-                rawData = parseCSV(csvText);
-
-                if (rawData.length === 0) throw new Error("La planilla no devolvió filas válidas.");
-
-                poblarSelectoresFiltros();
-                aplicarFiltrosYRenderizar();
-
-                actualizarStatus("bg-emerald-500", "Conectado en vivo");
-                const ahora = new Date();
-                document.getElementById("ultima-act").textContent = `Última sincro: ${ahora.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
-            } catch (err) {
-                console.error(err);
-                actualizarStatus("bg-red-500", "Error de lectura de planilla");
-            } finally {
-                icon.classList.remove("fa-spin");
-            }
-        }
-
-        function actualizarStatus(colorClass, text) {
-            document.getElementById('status-dot').className = `w-2.5 h-2.5 rounded-full ${colorClass}`;
-            document.getElementById('status-texto').textContent = text;
-        }
-
-        function parseCSV(text) {
-            const lines = text.split(/\r\n|\n/);
-            if (lines.length < 2) return [];
-
-            const headers = parseCSVLine(lines[0]).map(h => normalizeHeader(h));
-            const items = [];
-
-            for (let i = 1; i < lines.length; i++) {
-                if (!lines[i].trim()) continue;
-                const row = parseCSVLine(lines[i]);
-                let obj = {};
-                headers.forEach((h, idx) => {
-                    obj[h] = row[idx] ? row[idx].trim() : "";
-                });
-                items.push(obj);
-            }
-            return items;
-        }
-
-        function parseCSVLine(line) {
-            const result = [];
-            let current = "";
-            let inQuotes = false;
-            for (let i = 0; i < line.length; i++) {
-                const char = line[i];
-                if (char === '"' && line[i + 1] === '"') {
-                    current += '"';
-                    i++;
-                } else if (char === '"') {
-                    inQuotes = !inQuotes;
-                } else if (char === ',' && !inQuotes) {
-                    result.push(current);
-                    current = "";
-                } else {
-                    current += char;
-                }
-            }
-            result.push(current);
-            return result;
-        }
-
-        function normalizeHeader(h) {
-            return h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
-        }
-
-        // Búsqueda Ultra-Flexible de Campos
-        function buscarCampo(obj, posiblesNombres) {
-            const keysObj = Object.keys(obj);
-            
-            // 1. Coincidencia exacta por normalización
-            for (let nombre of posiblesNombres) {
-                const keyBusqueda = normalizeHeader(nombre);
-                if (obj[keyBusqueda] !== undefined && obj[keyBusqueda] !== "") {
-                    return obj[keyBusqueda];
-                }
-            }
-
-            // 2. Coincidencia parcial si la columna contiene la palabra clave
-            for (let nombre of posiblesNombres) {
-                const keyBusqueda = normalizeHeader(nombre);
-                const kEncontrada = keysObj.find(k => k.includes(keyBusqueda));
-                if (kEncontrada && obj[kEncontrada] !== undefined && obj[kEncontrada] !== "") {
-                    return obj[kEncontrada];
-                }
-            }
-            return "";
-        }
-
-        // Parser numérico ultra robusto
-        function parsearNumero(val) {
-            if (!val) return 0;
-            if (typeof val === 'number') return val;
-            
-            let limpio = val.toString().replace(/[^0-9.,-]/g, '').trim();
-            if (!limpio) return 0;
-
-            if (limpio.includes('.') && limpio.includes(',')) {
-                limpio = limpio.replace(/\./g, '').replace(',', '.');
-            } else if (limpio.includes(',')) {
-                limpio = limpio.replace(',', '.');
-            }
-
-            const num = parseFloat(limpio);
-            return isNaN(num) ? 0 : num;
-        }
-
-        function poblarSelectoresFiltros() {
-            const modulos = new Set();
-            const procesos = new Set();
-
-            rawData.forEach(r => {
-                const mod = buscarCampo(r, ["EQUIPO/MODULO", "EQUIPO", "MODULO", "EQUIPOMODULO"]);
-                const proc = buscarCampo(r, ["Proceso", "PROCESO"]);
-                if (mod && mod !== "#N/A") modulos.add(mod);
-                if (proc && proc !== "#N/A") procesos.add(proc);
-            });
-
-            const selMod = document.getElementById("filtro-modulo");
-            const valModActual = selMod.value;
-            selMod.innerHTML = '<option value="TODOS">🏭 Todos los Módulos</option>';
-            Array.from(modulos).sort().forEach(m => {
-                selMod.innerHTML += `<option value="${m}">${m}</option>`;
-            });
-            selMod.value = valModActual;
-
-            const selProc = document.getElementById("filtro-proceso");
-            const valProcActual = selProc.value;
-            selProc.innerHTML = '<option value="TODOS">⚙️ Todos los Procesos</option>';
-            Array.from(procesos).sort().forEach(p => {
-                selProc.innerHTML += `<option value="${p}">${p}</option>`;
-            });
-            selProc.value = valProcActual;
-        }
-
-        function aplicarFiltrosYRenderizar() {
-            const modSel = document.getElementById("filtro-modulo").value;
-            const procSel = document.getElementById("filtro-proceso").value;
-
-            const filtrados = rawData.filter(r => {
-                const mod = buscarCampo(r, ["EQUIPO/MODULO", "EQUIPO", "MODULO", "EQUIPOMODULO"]);
-                const proc = buscarCampo(r, ["Proceso", "PROCESO"]);
-                const matchMod = (modSel === "TODOS" || mod === modSel);
-                const matchProc = (procSel === "TODOS" || proc === procSel);
-                return matchMod && matchProc;
-            });
-
-            renderizarDashboard(filtrados);
-        }
-
-        function renderizarDashboard(datos) {
-            let totalPiezas = 0;
-            let totalPendientes = 0;
-
-            let modMap = {};
-            let procMap = {};
-            let tbodyHtml = "";
-
-            datos.forEach(r => {
-                const prio = buscarCampo(r, ["Prioridad", "PRIORIDAD", "PRIO"]) || "-";
-                const modulo = buscarCampo(r, ["EQUIPO/MODULO", "EQUIPO", "MODULO", "EQUIPOMODULO"]) || "Sin Módulo";
-                const proceso = buscarCampo(r, ["Proceso", "PROCESO"]) || "Sin Proceso";
-                
-                const rawTotal = buscarCampo(r, ["Cant TOTAL", "Cant. Total", "CANT TOTAL", "CANTIDAD TOTAL", "TOTAL", "CANTIDAD", "CANT"]);
-                const rawPendiente = buscarCampo(r, ["Pendiente", "PENDIENTE", "CANT PENDIENTE", "PEND"]);
-
-                const cantTotal = parsearNumero(rawTotal);
-                const pendiente = parsearNumero(rawPendiente);
-
-                totalPiezas += cantTotal;
-                totalPendientes += pendiente;
-
-                if (modulo) {
-                    if (!modMap[modulo]) modMap[modulo] = { total: 0, pendiente: 0 };
-                    modMap[modulo].total += cantTotal;
-                    modMap[modulo].pendiente += pendiente;
-                }
-
-                if (proceso) {
-                    if (!procMap[proceso]) procMap[proceso] = { total: 0, pendiente: 0 };
-                    procMap[proceso].total += cantTotal;
-                    procMap[proceso].pendiente += pendiente;
-                }
-
-                const completado = Math.max(0, cantTotal - pendiente);
-                const pct = cantTotal > 0 ? Math.round((completado / cantTotal) * 100) : 0;
-
-                tbodyHtml += `
-                    <tr class="hover:bg-slate-800/40 transition-colors">
-                        <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 border border-slate-700">${prio}</span></td>
-                        <td class="p-3 font-semibold text-slate-200">${modulo}</td>
-                        <td class="p-3 text-slate-400">${proceso}</td>
-                        <td class="p-3 text-right font-bold text-slate-200">${cantTotal.toLocaleString('es-AR')}</td>
-                        <td class="p-3 text-right font-bold text-amber-400">${pendiente.toLocaleString('es-AR')}</td>
-                        <td class="p-3 text-center">
-                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${pct === 100 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'}">
-                                ${pct}%
-                            </span>
-                        </td>
-                    </tr>
-                `;
-            });
-
-            const totalCompletadas = Math.max(0, totalPiezas - totalPendientes);
-            const pctGlobal = totalPiezas > 0 ? Math.round((totalCompletadas / totalPiezas) * 100) : 0;
-
-            document.getElementById("metric-total").textContent = totalPiezas.toLocaleString('es-AR');
-            document.getElementById("metric-pendiente").textContent = totalPendientes.toLocaleString('es-AR');
-            document.getElementById("metric-completado").textContent = totalCompletadas.toLocaleString('es-AR');
-            document.getElementById("metric-pct").textContent = `${pctGlobal}%`;
-            document.getElementById("bar-pct-global").style.width = `${pctGlobal}%`;
-
-            document.getElementById("cant-registros-tabla").textContent = `${datos.length} ítems`;
-            document.getElementById("tbody-registros").innerHTML = tbodyHtml || '<tr><td colspan="6" class="p-4 text-center text-slate-500 italic">No hay registros que coincidan con el filtro.</td></tr>';
-
-            renderizarBarrasAgrupadas("contenedor-modulos", modMap);
-            renderizarBarrasAgrupadas("contenedor-procesos", procMap);
-        }
-
-        function renderizarBarrasAgrupadas(elementId, mapaData) {
-            const contenedor = document.getElementById(elementId);
-            contenedor.innerHTML = "";
-
-            const claves = Object.keys(mapaData).sort();
-            if (claves.length === 0) {
-                contenedor.innerHTML = '<p class="text-xs text-slate-500 italic">Sin datos</p>';
-                return;
-            }
-
-            claves.forEach(clave => {
-                const item = mapaData[clave];
-                const completado = Math.max(0, item.total - item.pendiente);
-                const pct = item.total > 0 ? Math.round((completado / item.total) * 100) : 0;
-
-                contenedor.innerHTML += `
-                    <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
-                        <div class="flex justify-between items-center">
-                            <span class="font-bold text-slate-200">${clave}</span>
-                            <span class="font-mono text-slate-400 font-bold">${completado.toLocaleString('es-AR')} / ${item.total.toLocaleString('es-AR')} <span class="text-blue-400">(${pct}%)</span></span>
-                        </div>
-                        <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
-                            <div class="bg-gradient-to-r from-blue-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: ${pct}%"></div>
-                        </div>
-                    </div>
-                `;
-            });
-        }
-    </script>
+})();
+</script>
 </body>
 </html>
