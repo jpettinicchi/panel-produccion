@@ -869,19 +869,26 @@ function renderDashboard(){
 
   document.getElementById('btn-refresh').onclick = manualRefresh;
   document.getElementById('btn-config').onclick = ()=>{ ui.view='setup'; syncError=null; render(); };
-  document.getElementById('inp-search').oninput = (e)=>{ ui.search = e.target.value; ui.visibleCount=60; renderDashboardDebounced(); };
-  document.getElementById('chk-pending').onchange = (e)=>{ ui.onlyPending = e.target.checked; ui.visibleCount=60; render(); };
-  document.getElementById('sel-sort').onchange = (e)=>{ ui.sort = e.target.value; render(); };
+  document.getElementById('inp-search').oninput = (e)=>{ ui.search = e.target.value; ui.visibleCount=60; renderResultsOnlyDebounced(); };
+  document.getElementById('chk-pending').onchange = (e)=>{ ui.onlyPending = e.target.checked; ui.visibleCount=60; renderResultsOnly(); };
+  document.getElementById('sel-sort').onchange = (e)=>{ ui.sort = e.target.value; renderResultsOnly(); };
   document.querySelectorAll('.tab').forEach(t=>{
     t.onclick = ()=>{ ui.proceso = t.getAttribute('data-proc'); ui.visibleCount=60; render(); };
   });
 }
 
+/* Actualiza solo la lista de tarjetas (no el header, filtros ni tabs),
+   así el input de búsqueda nunca pierde el foco mientras se tipea. */
+function renderResultsOnly(){
+  const filtered = getFilteredRows();
+  const groups = groupByModulo(filtered);
+  renderGroups(groups);
+}
+
 let searchDebounce = null;
-function renderDashboardDebounced(){
+function renderResultsOnlyDebounced(){
   clearTimeout(searchDebounce);
-  searchDebounce = setTimeout(()=>{ render(); }, 220);
-  // keep focus on input across re-render
+  searchDebounce = setTimeout(renderResultsOnly, 150);
 }
 
 function renderProcesoExtra(){
@@ -991,7 +998,7 @@ function pinturaBannerHtml(){
 }
 function attachPinturaBannerHandlers(){
   const chk = document.getElementById('chk-hide-valid');
-  if(chk) chk.onchange = (e)=>{ ui.hideValidated = e.target.checked; ui.visibleCount=60; render(); };
+  if(chk) chk.onchange = (e)=>{ ui.hideValidated = e.target.checked; ui.visibleCount=60; renderResultsOnly(); };
 }
 
 function sortItems(items){
@@ -1034,14 +1041,14 @@ function renderGroups(groups){
     const div = document.createElement('div');
     div.className = 'loadmore';
     div.innerHTML = `<button class="btn">Mostrar más (${totalAll - ui.visibleCount} restantes)</button>`;
-    div.querySelector('button').onclick = ()=>{ ui.visibleCount += 60; render(); };
+    div.querySelector('button').onclick = ()=>{ ui.visibleCount += 60; renderResultsOnly(); };
     wrap.appendChild(div);
   }
   wrap.querySelectorAll('.chk-valid').forEach(chk=>{
     chk.onchange = (e)=>{
       const card = e.target.closest('.card');
       const key = card.getAttribute('data-key');
-      if(key){ toggleValidatedKey(key); render(); }
+      if(key){ toggleValidatedKey(key); renderProcesoExtra(); renderResultsOnly(); }
     };
   });
 }
