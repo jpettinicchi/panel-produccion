@@ -182,8 +182,18 @@
   .card-qty{color:var(--muted);}
   .card-qty b{color:var(--ink);font-family:'IBM Plex Mono',monospace;}
   .card-pct{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:12px;}
+  .exced-badge{
+    display:inline-block;font-size:10px;font-weight:700;color:var(--yellow-ink);
+    background:var(--yellow);border-radius:4px;padding:1px 5px;margin-left:4px;vertical-align:middle;
+  }
   .bar{height:5px;border-radius:3px;background:var(--line-soft);margin-top:6px;overflow:hidden;}
   .bar > i{display:block;height:100%;}
+  .card-dates{
+    display:flex;justify-content:space-between;gap:8px;margin-top:8px;
+    font-size:10.5px;color:var(--muted);font-family:'IBM Plex Mono',monospace;
+  }
+  .card-dates b{color:var(--muted);}
+  .muted-item{color:var(--muted-2);font-style:italic;}
   .card-foot{
     display:flex;justify-content:space-between;margin-top:9px;padding-top:8px;
     border-top:1px dashed var(--line-soft);font-size:11px;color:var(--muted);
@@ -193,6 +203,56 @@
   .empty{
     text-align:center;color:var(--muted);padding:40px 20px;font-size:13px;
   }
+
+  /* ---------- selector de vista / máquina ---------- */
+  .view-switch{
+    display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);
+    border-radius:8px;padding:3px;
+  }
+  .view-switch button{
+    border:none;background:transparent;color:var(--muted);font-size:12.5px;font-weight:600;
+    padding:7px 12px;border-radius:6px;text-transform:uppercase;letter-spacing:.03em;
+  }
+  .view-switch button.active{background:var(--yellow);color:var(--yellow-ink);}
+  .maquina-select{
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--ink);
+    padding:9px 12px;font-size:13px;font-weight:600;
+  }
+
+  /* ---------- vista Gantt ---------- */
+  .gantt-wrap{margin:18px 16px 0;}
+  .gantt-empty{
+    text-align:center;color:var(--muted);padding:50px 20px;font-size:13px;
+    background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--radius);
+  }
+  .gantt-scale{
+    position:relative;
+    display:block; margin-left:200px;height:18px;border-bottom:1px solid var(--line-soft);
+    padding-bottom:6px;margin-bottom:10px;
+  }
+  .gantt-scale span{
+    position:absolute; top:0; transform:translateX(-50%);
+    font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace;
+  }
+  .gantt-row{display:flex;align-items:center;margin-bottom:6px;}
+  .gantt-label{
+    width:200px;flex-shrink:0;padding-right:10px;font-size:12px;color:var(--ink);font-weight:600;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .gantt-label .sub{display:block;font-size:10px;color:var(--muted);font-weight:400;}
+  .gantt-track{
+    position:relative;flex:1;height:26px;background:var(--panel-2);border-radius:5px;
+    border:1px solid var(--line-soft);
+  }
+  .gantt-bar{
+    position:absolute;top:3px;height:20px;border-radius:4px;
+    display:flex;align-items:center;padding:0 6px;overflow:hidden;
+    font-size:10px;font-weight:600;color:#0A0A0A;white-space:nowrap;
+  }
+  .gantt-bar.completo{background:var(--green);}
+  .gantt-bar.progreso{background:var(--blue);color:#fff;}
+  .gantt-bar.pendiente{background:var(--muted-2);color:#fff;opacity:.6;}
+  .gantt-module-avance{font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
 
   /* ---------- process extras: reparto de sierra / validación pintura ---------- */
   .extra-panel{
@@ -302,6 +362,8 @@ let demoMode = false;
 
 let ui = {
   view:"setup", // setup | dashboard
+  vista:"tarjetas", // tarjetas | gantt
+  maquina:"__ALL__",
   proceso:"__ALL__",
   search:"",
   onlyPending:true,
@@ -407,7 +469,10 @@ const FIELD_MAP = {
   realiza:["REALIZA"],
   cliente:["CLIENTE"],
   nOT:["NOT","NROOT","NUMEROOT"],
-  comentarios:["COMENTARIOSANADIRPROCESO","COMENTARIOS"]
+  comentarios:["COMENTARIOSANADIRPROCESO","COMENTARIOS"],
+  tipoMaquina:["TIPODEMAQUINA","TIPOMAQUINA","MODELO","MAQUINA"],
+  fechaInicio:["FECHAINICIO"],
+  fechaFin:["FECHAFIN"]
 };
 
 function buildColumnIndex(headers){
@@ -479,6 +544,30 @@ function buildGvizUrl(sheetId, sheetName){
   return `${base}?sheet=${encodeURIComponent(sheetName)}`;
 }
 
+/* Google (gviz) devuelve fechas como el string "Date(2026,0,15)" (mes en
+   base 0) para columnas de tipo fecha/fecha-hora. A veces, si la celda
+   está vacía o mal tipada, puede venir como texto normal o número serial. */
+function parseGvizDate(v){
+  if(v === null || v === undefined || v === "") return null;
+  if(typeof v === "string" && v.indexOf("Date(") === 0){
+    const nums = v.slice(5, -1).split(",").map(n=>parseInt(n,10));
+    if(nums.length >= 3 && !nums.some(isNaN)){
+      return new Date(nums[0], nums[1], nums[2], nums[3]||0, nums[4]||0, nums[5]||0);
+    }
+    return null;
+  }
+  if(typeof v === "number"){
+    // número de serie estilo Excel/Sheets: días desde 1899-12-30
+    const epoch = new Date(1899,11,30).getTime();
+    return new Date(epoch + v*86400000);
+  }
+  if(typeof v === "string"){
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
 async function fetchSheet(sheetId, sheetName){
   const url = buildGvizUrl(sheetId, sheetName);
   let json;
@@ -527,7 +616,10 @@ async function fetchSheet(sheetId, sheetName){
       realiza: get('realiza') || "",
       cliente: get('cliente') || "",
       nOT: get('nOT') || "",
-      comentarios: get('comentarios') || ""
+      comentarios: get('comentarios') || "",
+      tipoMaquina: (get('tipoMaquina') || "").toString().trim(),
+      fechaInicio: parseGvizDate(get('fechaInicio')),
+      fechaFin: parseGvizDate(get('fechaFin'))
     };
   }).filter(r => r.modulo && r.modulo !== "SIN MÓDULO" || r.proceso !== "SIN PROCESO");
 
@@ -540,13 +632,21 @@ async function fetchSheet(sheetId, sheetName){
 function getDemoRows(){
   const mods = ["FRONT (X6)","ROTORES (X6)","ZARANDA (X6)","CANASTA(X6)","CINTA(X6)"];
   const procs = ["AGUJEREADO","CORTE COMPUTARIZADO POR PANTOGRAFO","MECANIZADO","SOLDADO","PLEGADO","PINTADO"];
+  const maquinas = ["AR2200","AR1300"];
   const rows = [];
   let p = 1272;
+  const today = new Date();
   mods.forEach((mod,mi)=>{
+    const maquina = maquinas[mi % maquinas.length];
     procs.forEach((proc,pi)=>{
       for(let i=0;i<4;i++){
         const necesaria = [6,12,18,30,60][Math.floor(Math.random()*5)];
-        const avance = [0,0,0.33,0.5,0.75,1,1][Math.floor(Math.random()*7)];
+        const avanceOpts = [0,0,0.33,0.5,0.75,1,1,1.2];
+        const avance = avanceOpts[Math.floor(Math.random()*avanceOpts.length)];
+        const diasInicio = Math.floor(Math.random()*20) + pi*3;
+        const fechaInicio = avance>0 ? new Date(today.getTime() - diasInicio*86400000) : null;
+        const duracion = Math.floor(Math.random()*5)+1;
+        const fechaFin = (avance>=1 && fechaInicio) ? new Date(fechaInicio.getTime() + duracion*86400000) : null;
         rows.push({
           cod1:(1000+mi*100+pi*10+i).toString(),
           cod2:"",
@@ -563,7 +663,10 @@ function getDemoRows(){
           realiza: avance>0 ? ["J. MOSEVICH","ROTOLASER","TALLER"][i%3] : "",
           cliente:"",
           nOT: "OT-" + (5000+mi*10+pi),
-          comentarios:""
+          comentarios:"",
+          tipoMaquina: maquina,
+          fechaInicio: fechaInicio,
+          fechaFin: fechaFin
         });
       }
     });
@@ -583,6 +686,9 @@ function statusColor(st){
   return st==="completo" ? "var(--green)" : st==="progreso" ? "var(--blue)" : "var(--yellow)";
 }
 function pct(n){ return Math.round(n*100); }
+function excedentePct(row){
+  return row.avance > 1 ? Math.round((row.avance - 1) * 100) : 0;
+}
 function esc(s){
   return (s===null||s===undefined?"":s.toString())
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
@@ -591,13 +697,33 @@ function fmtNum(n){
   if(Math.abs(n - Math.round(n)) < 0.01) return Math.round(n).toString();
   return n.toFixed(1);
 }
+function fmtDate(d){
+  if(!d) return "";
+  const dd = String(d.getDate()).padStart(2,"0");
+  const mm = String(d.getMonth()+1).padStart(2,"0");
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
 
-function getFilteredRows(){
+function getMaquinas(){
+  const set = new Set();
+  rawRows.forEach(r=>{ if(r.tipoMaquina) set.add(r.tipoMaquina); });
+  return Array.from(set).sort();
+}
+
+function getMachineRows(){
+  if(ui.maquina === "__ALL__") return rawRows;
+  return rawRows.filter(r=>r.tipoMaquina === ui.maquina);
+}
+
+function getFilteredRows(opts={}){
   let rows = rawRows;
+  if(ui.maquina !== "__ALL__"){
+    rows = rows.filter(r=>r.tipoMaquina === ui.maquina);
+  }
   if(ui.proceso !== "__ALL__"){
     rows = rows.filter(r=>r.proceso === ui.proceso);
   }
-  if(ui.onlyPending){
+  if(ui.onlyPending && !opts.ignoreOnlyPending){
     rows = rows.filter(r=>r.avance < 1);
   }
   if(ui.proceso === 'PINTADO' && ui.hideValidated){
@@ -630,7 +756,7 @@ function computeKpis(rows){
 
 function computeProcesos(){
   const map = {};
-  rawRows.forEach(r=>{
+  getMachineRows().forEach(r=>{
     if(!map[r.proceso]) map[r.proceso] = {total:0, pend:0};
     map[r.proceso].total++;
     if(r.avance < 1) map[r.proceso].pend++;
@@ -639,7 +765,7 @@ function computeProcesos(){
 }
 
 function computeProcesoSummary(proceso){
-  const rows = rawRows.filter(r=>r.proceso === proceso);
+  const rows = getMachineRows().filter(r=>r.proceso === proceso);
   const total = rows.length;
   const pend = rows.filter(r=>r.avance<1).length;
   const necTotal = rows.reduce((a,r)=>a+r.cantNecesaria,0);
@@ -667,6 +793,106 @@ function groupByModulo(rows){
   });
   groups.sort((a,b)=>a.prio - b.prio);
   return groups;
+}
+
+/* ============================================================
+   GANTT — a partir de Fecha Inicio / Fecha Fin por fila.
+   Cada módulo es una fila; cada proceso dentro de ese módulo es un
+   tramo (segmento), agregando todas las piezas de ese proceso en ese
+   módulo: inicio = la más temprana, fin = la más tardía SI todas las
+   piezas de ese proceso ya llegaron a 100% (si no, el tramo se
+   considera "en curso" y se extiende hasta hoy).
+   ============================================================ */
+function computeGanttSegments(rows){
+  const byModulo = {};
+  rows.forEach(r=>{
+    if(!r.fechaInicio) return;
+    if(!byModulo[r.modulo]) byModulo[r.modulo] = { procesos:{}, prioridad:r.prioridad };
+    const g = byModulo[r.modulo];
+    if(r.prioridad < g.prioridad) g.prioridad = r.prioridad;
+    if(!g.procesos[r.proceso]) g.procesos[r.proceso] = [];
+    g.procesos[r.proceso].push(r);
+  });
+
+  const result = [];
+  Object.keys(byModulo).forEach(modulo=>{
+    const g = byModulo[modulo];
+    const segments = Object.keys(g.procesos).map(proceso=>{
+      const items = g.procesos[proceso];
+      const inicio = new Date(Math.min(...items.map(r=>r.fechaInicio.getTime())));
+      const allDone = items.every(r=>r.avance>=1);
+      const itemsConFin = items.filter(r=>r.fechaFin);
+      const fin = (allDone && itemsConFin.length===items.length)
+        ? new Date(Math.max(...itemsConFin.map(r=>r.fechaFin.getTime())))
+        : null;
+      const someStarted = items.some(r=>r.avance>0);
+      const estado = allDone ? "completo" : (someStarted ? "progreso" : "pendiente");
+      const avanceProm = items.reduce((a,r)=>a+Math.min(r.avance,1),0)/items.length;
+      return { proceso, inicio, fin, estado, avance:avanceProm, piezas:items.length };
+    });
+    segments.sort((a,b)=>a.inicio-b.inicio);
+    if(segments.length) result.push({ modulo, segments, prioridad:g.prioridad });
+  });
+  result.sort((a,b)=>a.prioridad-b.prioridad);
+  return result;
+}
+
+function renderGanttView(){
+  const container = document.getElementById('gantt-wrap');
+  if(!container) return;
+  const rows = getFilteredRows({ignoreOnlyPending:true}).filter(r=>r.fechaInicio);
+
+  if(rows.length===0){
+    container.innerHTML = `<div class="gantt-empty">Todavía no hay piezas con <b>Fecha Inicio</b> cargada${ui.maquina!=='__ALL__' ? " para "+esc(ui.maquina) : ""}. En cuanto se empiece a cargar Fecha Inicio / Fecha Fin en la planilla (a mano o con la macro), acá va a aparecer la línea de tiempo real de cada módulo.</div>`;
+    return;
+  }
+
+  const groupsData = computeGanttSegments(rows);
+  const allDates = [];
+  groupsData.forEach(g=>g.segments.forEach(s=>{
+    allDates.push(s.inicio.getTime());
+    allDates.push((s.fin || new Date()).getTime());
+  }));
+  const minD = new Date(Math.min(...allDates) - 86400000);
+  const maxD = new Date(Math.max(...allDates) + 86400000);
+  const totalMs = Math.max(maxD.getTime() - minD.getTime(), 86400000);
+  const leftPctOf = (d)=> Math.max(0, Math.min(100, ((d.getTime()-minD.getTime())/totalMs)*100));
+
+  const totalDays = totalMs/86400000;
+  const stepDays = totalDays>90 ? 14 : totalDays>45 ? 7 : totalDays>20 ? 3 : 1;
+  const ticks = [];
+  let d = new Date(minD); d.setHours(0,0,0,0);
+  let guard = 0;
+  while(d.getTime() <= maxD.getTime() && guard < 60){
+    ticks.push(new Date(d));
+    d = new Date(d.getTime() + stepDays*86400000);
+    guard++;
+  }
+
+  let html = `<div class="gantt-scale">`;
+  ticks.forEach(t=>{
+    html += `<span style="left:${leftPctOf(t)}%;">${fmtDate(t).slice(0,5)}</span>`;
+  });
+  html += `</div>`;
+
+  groupsData.forEach(g=>{
+    html += `
+      <div class="gantt-row">
+        <div class="gantt-label">${esc(g.modulo)}<span class="sub">${g.segments.length} proceso${g.segments.length===1?"":"s"}</span></div>
+        <div class="gantt-track">
+          ${g.segments.map(s=>{
+            const left = leftPctOf(s.inicio);
+            const right = leftPctOf(s.fin || new Date());
+            const width = Math.max(right-left, 1.8);
+            const label = s.proceso.length>20 ? s.proceso.slice(0,18)+"…" : s.proceso;
+            return `<div class="gantt-bar ${s.estado}" style="left:${left}%;width:${width}%;" title="${esc(s.proceso)} · ${pct(s.avance)}% · ${s.piezas} pieza(s)">${esc(label)}</div>`;
+          }).join("")}
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
 }
 
 /* ============================================================
@@ -786,11 +1012,12 @@ function timeAgo(){
 
 function renderDashboard(){
   const app = document.getElementById('app');
+  const maquinaRows = getMachineRows();
   const filtered = getFilteredRows();
-  const kpis = computeKpis(rawRows);
+  const kpis = computeKpis(maquinaRows);
   const procesos = computeProcesos();
   const groups = groupByModulo(filtered);
-  const visible = filtered.length > ui.visibleCount;
+  const maquinas = getMaquinas();
 
   app.innerHTML = `
     <header class="top">
@@ -799,7 +1026,12 @@ function renderDashboard(){
           <div class="eyebrow">PCP · C&amp;S AGRO ${demoMode ? "· MODO DEMO" : ""}</div>
           <h1>PANEL DE <span>PRODUCCIÓN</span></h1>
         </div>
-        <div style="display:flex;align-items:center;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          ${maquinas.length > 1 ? `
+          <select class="maquina-select" id="sel-maquina">
+            <option value="__ALL__" ${ui.maquina==='__ALL__'?'selected':''}>Todas las máquinas</option>
+            ${maquinas.map(m=>`<option value="${esc(m)}" ${ui.maquina===m?'selected':''}>${esc(m)}</option>`).join("")}
+          </select>` : ""}
           <div class="sync">
             <span class="sync-dot ${syncError ? 'err' : (loading?'stale':'')}"></span>
             ${loading ? "Actualizando…" : (syncError ? "Error de sincronización" : "Actualizado " + timeAgo())}
@@ -833,19 +1065,24 @@ function renderDashboard(){
     ${syncError ? `<div style="margin:0 16px;" class="err-box">${esc(syncError)}</div>` : ""}
 
     <div class="filters">
+      <div class="view-switch">
+        <button data-vista="tarjetas" class="${ui.vista==='tarjetas'?'active':''}">Tarjetas</button>
+        <button data-vista="gantt" class="${ui.vista==='gantt'?'active':''}">Gantt</button>
+      </div>
       <input class="search" id="inp-search" type="text" placeholder="Buscar código, descripción, cliente, OT…" value="${esc(ui.search)}">
+      ${ui.vista==='tarjetas' ? `
       <label class="toggle"><input type="checkbox" id="chk-pending" ${ui.onlyPending?"checked":""}> Solo pendientes</label>
       <select class="sortsel" id="sel-sort">
         <option value="prioridad" ${ui.sort==='prioridad'?'selected':''}>Orden: Prioridad</option>
         <option value="avance" ${ui.sort==='avance'?'selected':''}>Orden: Menor avance</option>
         <option value="horas" ${ui.sort==='horas'?'selected':''}>Orden: Más horas</option>
-      </select>
+      </select>` : ""}
     </div>
 
     <div class="tabs-wrap">
       <div class="tabs">
         <div class="tab ${ui.proceso==='__ALL__'?'active':''}" data-proc="__ALL__">
-          TODOS <span class="badge">${rawRows.filter(r=>r.avance<1).length}</span>
+          TODOS <span class="badge">${maquinaRows.filter(r=>r.avance<1).length}</span>
         </div>
         ${procesos.map(p=>`
           <div class="tab ${ui.proceso===p.name?'active':''}" data-proc="${esc(p.name)}">
@@ -857,7 +1094,8 @@ function renderDashboard(){
 
     <div id="proceso-extra"></div>
 
-    <div id="groups-wrap"></div>
+    <div id="groups-wrap" style="${ui.vista==='gantt'?'display:none;':''}"></div>
+    <div id="gantt-wrap" class="gantt-wrap" style="${ui.vista==='tarjetas'?'display:none;':''}"></div>
 
     <div class="footer-note">
       ${demoMode ? "Estás viendo datos de demostración." : `Fuente: Google Sheets · pestaña “${esc(config.sheetName)}” · solo lectura`}
@@ -866,20 +1104,33 @@ function renderDashboard(){
 
   renderProcesoExtra();
   renderGroups(groups);
+  if(ui.vista==='gantt') renderGanttView();
 
   document.getElementById('btn-refresh').onclick = manualRefresh;
   document.getElementById('btn-config').onclick = ()=>{ ui.view='setup'; syncError=null; render(); };
   document.getElementById('inp-search').oninput = (e)=>{ ui.search = e.target.value; ui.visibleCount=60; renderResultsOnlyDebounced(); };
-  document.getElementById('chk-pending').onchange = (e)=>{ ui.onlyPending = e.target.checked; ui.visibleCount=60; renderResultsOnly(); };
-  document.getElementById('sel-sort').onchange = (e)=>{ ui.sort = e.target.value; renderResultsOnly(); };
+  const chkPending = document.getElementById('chk-pending');
+  if(chkPending) chkPending.onchange = (e)=>{ ui.onlyPending = e.target.checked; ui.visibleCount=60; renderResultsOnly(); };
+  const selSort = document.getElementById('sel-sort');
+  if(selSort) selSort.onchange = (e)=>{ ui.sort = e.target.value; renderResultsOnly(); };
+  const selMaquina = document.getElementById('sel-maquina');
+  if(selMaquina) selMaquina.onchange = (e)=>{ ui.maquina = e.target.value; ui.visibleCount=60; render(); };
+  document.querySelectorAll('.view-switch button').forEach(b=>{
+    b.onclick = ()=>{ ui.vista = b.getAttribute('data-vista'); render(); };
+  });
   document.querySelectorAll('.tab').forEach(t=>{
     t.onclick = ()=>{ ui.proceso = t.getAttribute('data-proc'); ui.visibleCount=60; render(); };
   });
 }
 
 /* Actualiza solo la lista de tarjetas (no el header, filtros ni tabs),
-   así el input de búsqueda nunca pierde el foco mientras se tipea. */
+   así el input de búsqueda nunca pierde el foco mientras se tipea.
+   Si la vista activa es Gantt, actualiza el Gantt en su lugar. */
 function renderResultsOnly(){
+  if(ui.vista === 'gantt'){
+    renderGanttView();
+    return;
+  }
   const filtered = getFilteredRows();
   const groups = groupByModulo(filtered);
   renderGroups(groups);
@@ -940,7 +1191,7 @@ function procesoSummaryHtml(proceso){
 }
 
 function sawPanelHtml(){
-  const pend = rawRows.filter(r=>r.proceso==='CORTE SIERRA' && r.avance<1);
+  const pend = getMachineRows().filter(r=>r.proceso==='CORTE SIERRA' && r.avance<1);
   if(pend.length===0){
     return `<div class="extra-panel"><div class="extra-empty">No hay piezas pendientes de corte en sierra ahora mismo.</div></div>`;
   }
@@ -984,7 +1235,7 @@ function attachSawHandlers(){
 }
 
 function pinturaBannerHtml(){
-  const pintRows = rawRows.filter(r=>r.proceso==='PINTADO');
+  const pintRows = getMachineRows().filter(r=>r.proceso==='PINTADO');
   const validCount = pintRows.filter(isValidated).length;
   return `
     <div class="extra-panel">
@@ -1059,6 +1310,7 @@ function cardHtml(r){
   const code = r.cod1 || r.cod2 || r.producto;
   const isPintura = r.proceso === 'PINTADO';
   const validated = isPintura && isValidated(r);
+  const exced = excedentePct(r);
   return `
     <div class="card st-${st}${validated?' st-validated':''}"${isPintura?` data-key="${esc(rowKey(r))}"`:""}>
       <div class="card-top">
@@ -1069,12 +1321,17 @@ function cardHtml(r){
         </div>
       </div>
       <div class="card-desc">${esc(r.descripcion)}</div>
-      <div class="card-code">${esc(code)}${r.cliente ? " · " + esc(r.cliente) : ""}</div>
+      <div class="card-code">${esc(code)}${r.cliente ? " · " + esc(r.cliente) : ""}${r.tipoMaquina ? " · " + esc(r.tipoMaquina) : ""}</div>
       <div class="card-row">
         <div class="card-qty">Necesaria <b>${fmtNum(r.cantNecesaria)}</b> · Hecha <b>${fmtNum(Math.min(r.cantTotal,r.cantNecesaria||r.cantTotal))}</b> · Pend. <b>${fmtNum(Math.max(r.pendiente,0))}</b></div>
-        <div class="card-pct" style="color:${statusColor(st)}">${pct(r.avance)}%</div>
+        <div class="card-pct" style="color:${statusColor(st)}">${Math.min(pct(r.avance),100)}%${exced>0 ? ` <span class="exced-badge">+${exced}% exced.</span>` : ""}</div>
       </div>
       <div class="bar"><i style="width:${Math.min(pct(r.avance),100)}%;background:${statusColor(st)};"></i></div>
+      ${(r.fechaInicio || r.fechaFin) ? `
+      <div class="card-dates">
+        ${r.fechaInicio ? `<span>Inicio: <b>${fmtDate(r.fechaInicio)}</b></span>` : `<span class="muted-item">Sin fecha de inicio</span>`}
+        ${r.fechaFin ? `<span>Fin: <b>${fmtDate(r.fechaFin)}</b></span>` : ""}
+      </div>` : ""}
       <div class="card-foot">
         <span>${r.realiza ? "Realiza: <b>"+esc(r.realiza)+"</b>" : ""}</span>
         <span>${r.nOT ? "OT: <b>"+esc(r.nOT)+"</b>" : ""}${r.horasTotales ? " · "+fmtNum(r.horasTotales)+"h" : ""}</span>
