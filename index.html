@@ -252,7 +252,25 @@
   .gantt-bar.completo{background:var(--green);}
   .gantt-bar.progreso{background:var(--blue);color:#fff;}
   .gantt-bar.pendiente{background:var(--muted-2);color:#fff;opacity:.6;}
+  .gantt-bar.interferencia{
+    outline:2px solid var(--red); outline-offset:1px;
+    box-shadow:0 0 0 3px rgba(225,80,61,.25);
+    font-weight:700;
+  }
   .gantt-module-avance{font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
+  .gantt-legend{
+    display:flex;flex-wrap:wrap;gap:14px;align-items:center;
+    font-size:11px;color:var(--muted);margin:0 0 12px;
+  }
+  .gantt-legend .dot{
+    display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle;
+  }
+  .gantt-legend .dot.completo{background:var(--green);}
+  .gantt-legend .dot.progreso{background:var(--blue);}
+  .gantt-legend .dot.interferencia{background:transparent;outline:2px solid var(--red);outline-offset:0;}
+  .gantt-legend .interf-count{
+    color:var(--red);font-weight:700;margin-left:auto;
+  }
 
   /* ---------- process extras: reparto de sierra / validación pintura ---------- */
   .extra-panel{
@@ -828,13 +846,57 @@ function computeGanttSegments(rows){
       const someStarted = items.some(r=>r.avance>0);
       const estado = allDone ? "completo" : (someStarted ? "progreso" : "pendiente");
       const avanceProm = items.reduce((a,r)=>a+Math.min(r.avance,1),0)/items.length;
-      return { proceso, inicio, fin, estado, avance:avanceProm, piezas:items.length };
+      return { modulo, proceso, inicio, fin, estado, avance:avanceProm, piezas:items.length };
     });
     segments.sort((a,b)=>a.inicio-b.inicio);
     if(segments.length) result.push({ modulo, segments, prioridad:g.prioridad });
   });
   result.sort((a,b)=>a.prioridad-b.prioridad);
   return result;
+}
+
+function segKey(s){
+  return s.modulo + "||" + s.proceso + "||" + s.inicio.getTime();
+}
+
+/* Interferencia = el mismo PROCESO (misma estación/máquina, ej. la
+   sierra) con tramos de dos o más módulos distintos superpuestos en
+   fecha. Es una señal de posible cuello de botella, no una certeza:
+   como no tenemos la cantidad real de máquinas/puestos por proceso,
+   no sabemos si ese proceso tiene 1 sola estación (ahí sí sería un
+   choque real) o varias en paralelo (ahí se puede hacer sin problema). */
+function computeInterferencias(groupsData){
+  const byProceso = {};
+  groupsData.forEach(g=>{
+    g.segments.forEach(s=>{
+      const finEfectivo = s.fin || new Date();
+      if(!byProceso[s.proceso]) byProceso[s.proceso] = [];
+      byProceso[s.proceso].push({ modulo:g.modulo, proceso:s.proceso, inicio:s.inicio, finEfectivo, key:segKey(s) });
+    });
+  });
+
+  const map = {}; // key del segmento -> Set de módulos con los que se superpone
+  Object.values(byProceso).forEach(segs=>{
+    for(let i=0;i<segs.length;i++){
+      for(let j=i+1;j<segs.length;j++){
+        const a = segs[i], b = segs[j];
+        if(a.modulo === b.modulo) continue;
+        const overlap = a.inicio < b.finEfectivo && b.inicio < a.finEfectivo;
+        if(overlap){
+          if(!map[a.key]) map[a.key] = new Set();
+          if(!map[b.key]) map[b.key] = new Set();
+          map[a.key].add(b.modulo);
+          map[b.key].add(a.modulo);
+        }
+      }
+    }
+  });
+  return map;
+}
+
+function ganttDuracionDias(s){
+  const fin = s.fin || new Date();
+  return Math.max(1, Math.round((fin.getTime() - s.inicio.getTime())/86400000));
 }
 
 function renderGanttView(){
@@ -848,6 +910,9 @@ function renderGanttView(){
   }
 
   const groupsData = computeGanttSegments(rows);
+  const interferencias = computeInterferencias(groupsData);
+  const totalInterferencias = Object.keys(interferencias).length;
+
   const allDates = [];
   groupsData.forEach(g=>g.segments.forEach(s=>{
     allDates.push(s.inicio.getTime());
@@ -869,7 +934,14 @@ function renderGanttView(){
     guard++;
   }
 
-  let html = `<div class="gantt-scale">`;
+  let html = `<div class="gantt-legend">
+    <span><i class="dot completo"></i> Completo</span>
+    <span><i class="dot progreso"></i> En curso</span>
+    <span><i class="dot interferencia"></i> Posible interferencia (mismo proceso, módulos distintos, fechas superpuestas)</span>
+    ${totalInterferencias>0 ? `<span class="interf-count">${totalInterferencias} tramo${totalInterferencias===1?"":"s"} con posible interferencia</span>` : ""}
+  </div>`;
+
+  html += `<div class="gantt-scale">`;
   ticks.forEach(t=>{
     html += `<span style="left:${leftPctOf(t)}%;">${fmtDate(t).slice(0,5)}</span>`;
   });
@@ -885,7 +957,13 @@ function renderGanttView(){
             const right = leftPctOf(s.fin || new Date());
             const width = Math.max(right-left, 1.8);
             const label = s.proceso.length>20 ? s.proceso.slice(0,18)+"…" : s.proceso;
-            return `<div class="gantt-bar ${s.estado}" style="left:${left}%;width:${width}%;" title="${esc(s.proceso)} · ${pct(s.avance)}% · ${s.piezas} pieza(s)">${esc(label)}</div>`;
+            const dias = ganttDuracionDias(s);
+            const interf = interferencias[segKey(s)];
+            const interfCls = interf ? " interferencia" : "";
+            const diasLabel = s.fin ? `${dias}d` : `${dias}d en curso`;
+            const tooltipBase = `${s.proceso} · ${pct(s.avance)}% · ${s.piezas} pieza(s) · ${diasLabel}`;
+            const tooltip = interf ? `${tooltipBase} · ⚠ posible interferencia con: ${Array.from(interf).join(", ")}` : tooltipBase;
+            return `<div class="gantt-bar ${s.estado}${interfCls}" style="left:${left}%;width:${width}%;" title="${esc(tooltip)}">${interf?"⚠ ":""}${esc(label)}</div>`;
           }).join("")}
         </div>
       </div>
