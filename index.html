@@ -271,6 +271,11 @@
   .gantt-legend .interf-count{
     color:var(--red);font-weight:700;margin-left:auto;
   }
+  .gantt-note{
+    background:rgba(225,80,61,.08);border:1px solid rgba(225,80,61,.3);border-radius:8px;
+    padding:10px 14px;margin:0 0 16px;font-size:12px;line-height:1.55;color:var(--muted);
+  }
+  .gantt-note b{color:var(--ink);}
 
   /* ---------- process extras: reparto de sierra / validación pintura ---------- */
   .extra-panel{
@@ -940,6 +945,18 @@ function renderGanttView(){
     <span><i class="dot interferencia"></i> Posible interferencia (mismo proceso, módulos distintos, fechas superpuestas)</span>
     ${totalInterferencias>0 ? `<span class="interf-count">${totalInterferencias} tramo${totalInterferencias===1?"":"s"} con posible interferencia</span>` : ""}
   </div>`;
+
+  if(totalInterferencias>0){
+    html += `<div class="gantt-note">
+      Estos tramos comparten el mismo <b>proceso</b> (ej. la misma estación o máquina) con
+      <b>otro módulo</b> en fechas que se superponen. Puede ser un cuello de botella real
+      (si ese proceso tiene un solo puesto de trabajo) o simplemente dos módulos avanzando
+      en paralelo sin problema (si hay más de una máquina/puesto para ese proceso) — el panel
+      todavía no tiene cargada la cantidad de equipos por proceso, así que marca la superposición
+      como una señal para revisar, no como un error confirmado. Pasá el mouse sobre un tramo
+      marcado para ver con qué módulo se superpone.
+    </div>`;
+  }
 
   html += `<div class="gantt-scale">`;
   ticks.forEach(t=>{
