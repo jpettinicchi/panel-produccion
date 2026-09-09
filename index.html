@@ -47,7 +47,7 @@
 
   header.top{
     position:sticky;top:0;z-index:20;
-    background:linear-gradient(180deg,var(--bg) 80%,transparent);
+    background:var(--bg);
     padding:16px 16px 0;
   }
   .hazard-rule{
@@ -227,7 +227,7 @@
   }
   .gantt-scale{
     position:relative;
-    display:block; margin-left:200px;height:18px;border-bottom:1px solid var(--line-soft);
+    display:block; margin-left:210px;height:18px;border-bottom:1px solid var(--line-soft);
     padding-bottom:6px;margin-bottom:10px;
   }
   .gantt-scale span{
@@ -236,10 +236,11 @@
   }
   .gantt-row{display:flex;align-items:center;margin-bottom:6px;}
   .gantt-label{
-    width:200px;flex-shrink:0;padding-right:10px;font-size:12px;color:var(--ink);font-weight:600;
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    width:210px;flex-shrink:0;padding-right:10px;font-size:12px;color:var(--ink);font-weight:600;
+    display:flex;flex-direction:column;
   }
-  .gantt-label .sub{display:block;font-size:10px;color:var(--muted);font-weight:400;}
+  .gantt-label .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .gantt-label .sub{display:block;font-size:9.5px;color:var(--muted);font-weight:400;white-space:normal;line-height:1.3;margin-top:1px;}
   .gantt-track{
     position:relative;flex:1;height:26px;background:var(--panel-2);border-radius:5px;
     border:1px solid var(--line-soft);
@@ -268,14 +269,21 @@
   .gantt-legend .dot.completo{background:var(--green);}
   .gantt-legend .dot.progreso{background:var(--blue);}
   .gantt-legend .dot.interferencia{background:transparent;outline:2px solid var(--red);outline-offset:0;}
-  .gantt-legend .interf-count{
-    color:var(--red);font-weight:700;margin-left:auto;
+  .gantt-toggle{
+    display:inline-flex;align-items:center;cursor:pointer;user-select:none;
+    padding:4px 9px 4px 7px;border-radius:999px;border:1px solid var(--line);background:var(--panel);
   }
+  .gantt-toggle input{margin-right:6px;accent-color:var(--yellow);width:13px;height:13px;}
+  .gantt-toggle:has(input:not(:checked)){opacity:.45;}
   .gantt-note{
     background:rgba(225,80,61,.08);border:1px solid rgba(225,80,61,.3);border-radius:8px;
     padding:10px 14px;margin:0 0 16px;font-size:12px;line-height:1.55;color:var(--muted);
   }
   .gantt-note b{color:var(--ink);}
+  .gantt-note-count{
+    margin-top:10px;padding-top:10px;border-top:1px dashed rgba(225,80,61,.3);
+    color:var(--red);font-weight:700;font-size:12px;
+  }
 
   /* ---------- process extras: reparto de sierra / validación pintura ---------- */
   .extra-panel{
@@ -393,7 +401,8 @@ let ui = {
   sort:"prioridad",
   expandedGroups:{},
   visibleCount:60,
-  hideValidated:false
+  hideValidated:false,
+  ganttEstados:{ completo:true, progreso:true }
 };
 
 /* Validación manual de pintura — marca LOCAL al dispositivo (localStorage),
@@ -904,6 +913,26 @@ function ganttDuracionDias(s){
   return Math.max(1, Math.round((fin.getTime() - s.inicio.getTime())/86400000));
 }
 
+/* Total real de procesos y avance por módulo — a diferencia de los
+   "segments" del Gantt (que solo cuentan procesos CON fecha cargada),
+   esto mira TODAS las filas del módulo en la base, tengan fecha o no. */
+function computeModuloResumenGlobal(){
+  const map = {};
+  getMachineRows().forEach(r=>{
+    if(!map[r.modulo]) map[r.modulo] = { procesos:new Set(), nec:0, hecho:0 };
+    const m = map[r.modulo];
+    m.procesos.add(r.proceso);
+    m.nec += r.cantNecesaria;
+    m.hecho += Math.min(r.cantTotal, r.cantNecesaria||r.cantTotal);
+  });
+  const out = {};
+  Object.keys(map).forEach(k=>{
+    const m = map[k];
+    out[k] = { totalProcesos: m.procesos.size, avance: m.nec>0 ? m.hecho/m.nec : 0 };
+  });
+  return out;
+}
+
 function renderGanttView(){
   const container = document.getElementById('gantt-wrap');
   if(!container) return;
@@ -915,11 +944,32 @@ function renderGanttView(){
   }
 
   const groupsData = computeGanttSegments(rows);
-  const interferencias = computeInterferencias(groupsData);
+  const moduloResumen = computeModuloResumenGlobal();
+
+  // filtrar por los toggles de estado (Completo / En curso) — "pendiente"
+  // no tiene toggle propio, queda siempre visible si aparece
+  const visibleGroups = groupsData.map(g=>{
+    const segments = g.segments.filter(s => s.estado==='pendiente' || ui.ganttEstados[s.estado] !== false);
+    return { modulo:g.modulo, prioridad:g.prioridad, segments };
+  }).filter(g=>g.segments.length>0);
+
+  const legendHtml = `<div class="gantt-legend">
+    <label class="gantt-toggle"><input type="checkbox" id="chk-gantt-completo" ${ui.ganttEstados.completo?"checked":""}><i class="dot completo"></i> Completo</label>
+    <label class="gantt-toggle"><input type="checkbox" id="chk-gantt-progreso" ${ui.ganttEstados.progreso?"checked":""}><i class="dot progreso"></i> En curso</label>
+    <span><i class="dot interferencia"></i> Posible interferencia (mismo proceso, módulos distintos, fechas superpuestas)</span>
+  </div>`;
+
+  if(visibleGroups.length===0){
+    container.innerHTML = legendHtml + `<div class="gantt-empty">No hay tramos para mostrar con los estados seleccionados — activá "Completo" o "En curso" arriba.</div>`;
+    wireGanttToggles();
+    return;
+  }
+
+  const interferencias = computeInterferencias(visibleGroups);
   const totalInterferencias = Object.keys(interferencias).length;
 
   const allDates = [];
-  groupsData.forEach(g=>g.segments.forEach(s=>{
+  visibleGroups.forEach(g=>g.segments.forEach(s=>{
     allDates.push(s.inicio.getTime());
     allDates.push((s.fin || new Date()).getTime());
   }));
@@ -939,12 +989,7 @@ function renderGanttView(){
     guard++;
   }
 
-  let html = `<div class="gantt-legend">
-    <span><i class="dot completo"></i> Completo</span>
-    <span><i class="dot progreso"></i> En curso</span>
-    <span><i class="dot interferencia"></i> Posible interferencia (mismo proceso, módulos distintos, fechas superpuestas)</span>
-    ${totalInterferencias>0 ? `<span class="interf-count">${totalInterferencias} tramo${totalInterferencias===1?"":"s"} con posible interferencia</span>` : ""}
-  </div>`;
+  let html = legendHtml;
 
   if(totalInterferencias>0){
     html += `<div class="gantt-note">
@@ -955,6 +1000,7 @@ function renderGanttView(){
       todavía no tiene cargada la cantidad de equipos por proceso, así que marca la superposición
       como una señal para revisar, no como un error confirmado. Pasá el mouse sobre un tramo
       marcado para ver con qué módulo se superpone.
+      <div class="gantt-note-count">${totalInterferencias} tramo${totalInterferencias===1?"":"s"} con posible interferencia</div>
     </div>`;
   }
 
@@ -964,10 +1010,10 @@ function renderGanttView(){
   });
   html += `</div>`;
 
-  groupsData.forEach(g=>{
+  visibleGroups.forEach(g=>{
     html += `
       <div class="gantt-row">
-        <div class="gantt-label">${esc(g.modulo)}<span class="sub">${g.segments.length} proceso${g.segments.length===1?"":"s"}</span></div>
+        <div class="gantt-label"><span class="name">${esc(g.modulo)}</span><span class="sub">${moduloResumen[g.modulo] ? moduloResumen[g.modulo].totalProcesos : g.segments.length} procesos totales · ${moduloResumen[g.modulo] ? pct(moduloResumen[g.modulo].avance) : 0}% avance</span></div>
         <div class="gantt-track">
           ${g.segments.map(s=>{
             const left = leftPctOf(s.inicio);
@@ -988,6 +1034,14 @@ function renderGanttView(){
   });
 
   container.innerHTML = html;
+  wireGanttToggles();
+}
+
+function wireGanttToggles(){
+  const chkCompleto = document.getElementById('chk-gantt-completo');
+  const chkProgreso = document.getElementById('chk-gantt-progreso');
+  if(chkCompleto) chkCompleto.onchange = (e)=>{ ui.ganttEstados.completo = e.target.checked; renderGanttView(); };
+  if(chkProgreso) chkProgreso.onchange = (e)=>{ ui.ganttEstados.progreso = e.target.checked; renderGanttView(); };
 }
 
 /* ============================================================
